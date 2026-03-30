@@ -1,0 +1,3612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroPilot: Cognitive Load Arena</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #040810;
+    --panel: #080f1e;
+    --panel2: #0a1428;
+    --border: #1a3a6e;
+    --border-glow: #1e90ff;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #39ff14;
+    --warn: #ffcc00;
+    --danger: #ff2244;
+    --text: #c8e0ff;
+    --text-dim: #4a7aaa;
+    --green: #39ff14;
+    --red: #ff2244;
+    --orange: #ff8c00;
+    --purple: #bf5fff;
+    --low-color: #39ff14;
+    --med-color: #ffcc00;
+    --high-color: #ff2244;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    cursor: crosshair;
+  }
+
+  /* ── STARFIELD ── */
+  #starfield {
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background: radial-gradient(ellipse at 20% 30%, #0a1428 0%, #040810 60%);
+  }
+  .star {
+    position:absolute; border-radius:50%;
+    background:#fff; animation: twinkle var(--d,3s) infinite alternate;
+  }
+  @keyframes twinkle { from{opacity:.2} to{opacity:1} }
+
+  /* ── SCANLINES ── */
+  body::after {
+    content:''; position:fixed; inset:0; z-index:999; pointer-events:none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.08) 2px, rgba(0,0,0,.08) 4px);
+  }
+
+  /* ── SCREENS ── */
+  .screen { position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center; }
+  .screen.hidden { display:none; }
+
+  /* ── INTRO ── */
+  #intro-screen {
+    background: radial-gradient(ellipse at center, #081428 0%, #020608 100%);
+    flex-direction:column; gap:24px;
+  }
+  .logo-wrap { text-align:center; }
+  .logo-title {
+    font-family:'Orbitron',monospace; font-size:3.2rem; font-weight:900;
+    background: linear-gradient(90deg,#00d4ff,#39ff14,#00d4ff);
+    background-size:200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    animation: shimmer 3s infinite linear;
+    text-shadow: none; letter-spacing:.15em;
+  }
+  @keyframes shimmer { from{background-position:200%} to{background-position:-200%} }
+  .logo-sub {
+    font-family:'Share Tech Mono',monospace; color:var(--accent); font-size:1rem;
+    letter-spacing:.4em; margin-top:8px; opacity:.8;
+  }
+  .intro-desc {
+    max-width:640px; text-align:center; color:var(--text-dim); font-size:.95rem; line-height:1.7;
+  }
+  .level-select { display:flex; gap:16px; margin-top:8px; }
+  .level-btn {
+    padding:14px 32px; border:2px solid; border-radius:4px;
+    font-family:'Orbitron',monospace; font-size:.85rem; font-weight:700;
+    cursor:pointer; transition:all .2s; letter-spacing:.1em; background:transparent;
+  }
+  .level-btn.low { border-color:var(--low-color); color:var(--low-color); }
+  .level-btn.low:hover { background:var(--low-color); color:#000; box-shadow:0 0 24px var(--low-color); }
+  .level-btn.medium { border-color:var(--med-color); color:var(--med-color); }
+  .level-btn.medium:hover { background:var(--med-color); color:#000; box-shadow:0 0 24px var(--med-color); }
+  .level-btn.high { border-color:var(--high-color); color:var(--high-color); }
+  .level-btn.high:hover { background:var(--high-color); color:#fff; box-shadow:0 0 24px var(--high-color); }
+
+  /* ── GAME HUD ── */
+  #game-screen {
+    background:transparent; flex-direction:column; align-items:stretch;
+    padding:0; z-index:5;
+  }
+
+  .hud-top {
+    display:flex; align-items:center; gap:12px; padding:8px 16px;
+    background:rgba(8,15,30,.9); border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .hud-logo { font-family:'Orbitron',monospace; font-size:.85rem; color:var(--accent); letter-spacing:.15em; }
+  .hud-sep { flex:1; }
+  .hud-stat {
+    font-family:'Share Tech Mono',monospace; font-size:.78rem; color:var(--text-dim);
+    background:rgba(0,0,0,.3); padding:4px 10px; border:1px solid var(--border);
+    border-radius:2px;
+  }
+  .hud-stat span { color:var(--accent); font-weight:700; }
+  #timer-display { color:var(--warn); }
+  #load-badge {
+    font-family:'Orbitron',monospace; font-size:.72rem; font-weight:700;
+    padding:5px 12px; border-radius:2px; letter-spacing:.1em;
+    border:2px solid var(--low-color); color:var(--low-color);
+    transition:all .5s;
+  }
+
+  .game-body {
+    flex:1; display:grid; grid-template-columns:420px 1fr 260px;
+    grid-template-rows:1fr 160px;
+    gap:8px; padding:8px; overflow:hidden; min-height:0;
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background:var(--panel); border:1px solid var(--border); border-radius:4px;
+    display:flex; flex-direction:column; overflow:hidden; position:relative;
+  }
+  .panel::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: linear-gradient(135deg, rgba(0,212,255,.03) 0%, transparent 60%);
+  }
+  .panel-header {
+    font-family:'Orbitron',monospace; font-size:.65rem; font-weight:700;
+    color:var(--accent); letter-spacing:.2em; padding:6px 10px;
+    border-bottom:1px solid var(--border); background:rgba(0,0,0,.3);
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel-header .dot {
+    width:6px; height:6px; border-radius:50%; background:var(--accent);
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* ── MISSION COMMAND (LEFT) ── */
+  #cmd-panel { grid-column:1; grid-row:1; }
+  .cmd-body { flex:1; padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .mission-prompt {
+    background:rgba(0,212,255,.05); border:1px solid rgba(0,212,255,.2);
+    border-radius:3px; padding:14px; font-family:'Share Tech Mono',monospace;
+    font-size:1rem; color:#aee6ff; line-height:1.7; position:relative;
+  }
+  .mission-prompt .prompt-label {
+    font-size:.72rem; color:var(--text-dim); letter-spacing:.2em; margin-bottom:6px; display:block;
+  }
+  #type-target {
+    font-size:1.05rem; line-height:1.8; word-break:break-word; color:#c8e0ff;
+  }
+  #type-target .correct { color:var(--green); }
+  #type-target .wrong { color:var(--red); background:rgba(255,34,68,.15); }
+  #type-target .cursor-pos { border-left:2px solid var(--accent); animation:cursor-blink .7s infinite; }
+  @keyframes cursor-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .type-input-wrap { position:relative; }
+  #type-input {
+    width:100%; background:rgba(0,0,0,.4); border:1px solid var(--border-glow);
+    color:var(--accent); font-family:'Share Tech Mono',monospace; font-size:1rem;
+    padding:12px 14px; border-radius:3px; outline:none; caret-color:var(--accent);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  #type-input:focus { border-color:var(--accent); box-shadow:0 0 10px rgba(0,212,255,.2); }
+  #type-input.error { border-color:var(--red); box-shadow:0 0 10px rgba(255,34,68,.3); }
+
+  .cmd-progress { height:3px; background:rgba(255,255,255,.1); margin:0 12px 8px; border-radius:2px; }
+  .cmd-progress-bar { height:100%; background:var(--accent); border-radius:2px; transition:width .1s; width:0%; }
+
+  .override-box {
+    background:rgba(255,34,68,.08); border:1px solid rgba(255,34,68,.4);
+    border-radius:3px; padding:8px; display:none;
+  }
+  .override-box.active { display:block; animation: pulse-red .5s infinite alternate; }
+  @keyframes pulse-red { from{box-shadow:0 0 5px rgba(255,34,68,.2)} to{box-shadow:0 0 15px rgba(255,34,68,.5)} }
+  .override-label { font-family:'Orbitron',monospace; font-size:.6rem; color:var(--red); letter-spacing:.2em; margin-bottom:4px; }
+  #override-input {
+    width:100%; background:transparent; border:none; border-bottom:1px solid var(--red);
+    color:var(--red); font-family:'Share Tech Mono',monospace; font-size:.85rem;
+    outline:none; padding:3px 0; caret-color:var(--red);
+  }
+
+  /* ── RADAR / TRACKING (CENTER) ── */
+  #radar-panel { grid-column:2; grid-row:1; }
+  #radar-canvas {
+    flex:1; display:block; width:100%; height:100%;
+    cursor:none;
+  }
+
+  /* ── SYSTEMS (RIGHT) ── */
+  #sys-panel { grid-column:3; grid-row:1; }
+  .sys-body { flex:1; padding:10px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+
+  .sys-bar-item { display:flex; flex-direction:column; gap:3px; }
+  .sys-bar-label {
+    display:flex; justify-content:space-between;
+    font-family:'Share Tech Mono',monospace; font-size:.68rem; color:var(--text-dim);
+  }
+  .sys-bar-label span { color:var(--accent); }
+  .sys-bar-track { height:5px; background:rgba(255,255,255,.1); border-radius:2px; overflow:hidden; }
+  .sys-bar-fill { height:100%; border-radius:2px; transition:width .5s, background .5s; }
+
+  .alert-log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  .alert-entry {
+    font-family:'Share Tech Mono',monospace; font-size:.65rem; padding:4px 6px;
+    border-left:2px solid; border-radius:1px; background:rgba(0,0,0,.3);
+  }
+  .alert-entry.warn { border-color:var(--warn); color:var(--warn); }
+  .alert-entry.danger { border-color:var(--red); color:var(--red); }
+  .alert-entry.ok { border-color:var(--green); color:var(--green); }
+
+  /* ── METRICS BAR (BOTTOM LEFT) ── */
+  #metrics-panel { grid-column:1; grid-row:2; }
+  .metrics-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; }
+  .metric-cell {
+    background:rgba(0,0,0,.3); border:1px solid rgba(26,58,110,.5); border-radius:3px;
+    padding:6px 8px; display:flex; flex-direction:column; gap:2px;
+  }
+  .metric-label { font-size:.68rem; color:var(--text-dim); letter-spacing:.1em; font-family:'Orbitron',monospace; }
+  .metric-val { font-family:'Share Tech Mono',monospace; font-size:1rem; color:var(--accent); font-weight:700; }
+
+  /* ── WAVEFORM (BOTTOM CENTER) ── */
+  #wave-panel { grid-column:2; grid-row:2; }
+  #wave-canvas { flex:1; width:100%; display:block; }
+
+  /* ── ALERTS PANEL (BOTTOM RIGHT) ── */
+  #alert-panel { grid-column:3; grid-row:2; }
+  .alert-body { flex:1; padding:8px; overflow-y:auto; }
+
+  /* ── POP-UP ALERTS ── */
+  #alert-overlay {
+    position:fixed; inset:0; z-index:50; pointer-events:none;
+    display:flex; flex-direction:column; align-items:flex-end; justify-content:flex-start;
+    padding:80px 16px 16px; gap:10px;
+  }
+  .popup-alert {
+    pointer-events:all; max-width:300px; width:100%;
+    background:var(--panel2); border:2px solid var(--warn);
+    border-radius:4px; padding:14px; box-shadow:0 0 30px rgba(255,204,0,.3);
+    animation:slide-in .3s ease; font-family:'Share Tech Mono',monospace;
+    position:relative; font-size:1rem;
+  }
+  .popup-alert.danger-alert { border-color:var(--red); box-shadow:0 0 30px rgba(255,34,68,.4); }
+  @keyframes slide-in { from{transform:translateX(120%); opacity:0} to{transform:translateX(0); opacity:1} }
+  .popup-title {
+    font-family:'Orbitron',monospace; font-size:.75em; color:var(--warn); margin-bottom:6px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .popup-alert.danger-alert .popup-title { color:var(--red); }
+  .popup-body { font-size:.78em; color:var(--text-dim); margin-bottom:10px; line-height:1.5; }
+  .popup-btn {
+    background:var(--warn); color:#000; border:none; padding:5px 14px;
+    font-family:'Orbitron',monospace; font-size:.70em; font-weight:700;
+    cursor:pointer; border-radius:2px; margin-right:6px; letter-spacing:.1em;
+    transition:all .15s;
+  }
+  .popup-btn:hover { opacity:.85; }
+  .popup-alert.danger-alert .popup-btn { background:var(--red); color:#fff; }
+  .popup-input {
+    width:100%; background:rgba(0,0,0,.5); border:1px solid rgba(255,204,0,.4);
+    color:var(--warn); font-family:'Share Tech Mono',monospace; font-size:.85em;
+    padding:4px 7px; border-radius:2px; outline:none; margin-bottom:6px;
+    caret-color:var(--warn);
+  }
+  .popup-alert.danger-alert .popup-input { border-color:rgba(255,34,68,.4); color:var(--red); caret-color:var(--red); }
+  .popup-timer-bar { height:3px; background:rgba(255,255,255,.1); border-radius:2px; margin-top:8px; overflow:hidden; }
+  .popup-timer-fill { height:100%; background:var(--warn); border-radius:2px; transition:width .1s linear; }
+  .popup-alert.danger-alert .popup-timer-fill { background:var(--red); }
+
+  /* ── DECEPTION FLASH ── */
+  #deception-overlay {
+    position:fixed; inset:0; z-index:60; pointer-events:none;
+    background:rgba(191,95,255,.05); display:none;
+    font-family:'Orbitron',monospace;
+  }
+  #deception-overlay.active { display:flex; align-items:center; justify-content:center; }
+  .deception-msg {
+    background:rgba(8,10,24,.95); border:2px solid var(--purple);
+    border-radius:6px; padding:24px 36px; text-align:center;
+    box-shadow:0 0 60px rgba(191,95,255,.4);
+    animation:deception-pulse 1s infinite alternate;
+    pointer-events:all;
+  }
+  @keyframes deception-pulse { from{box-shadow:0 0 30px rgba(191,95,255,.3)} to{box-shadow:0 0 80px rgba(191,95,255,.7)} }
+  .deception-title { font-size:1.1rem; color:var(--purple); letter-spacing:.2em; margin-bottom:8px; }
+  .deception-body { font-size:.8rem; color:var(--text); font-family:'Share Tech Mono',monospace; line-height:1.6; }
+  .deception-choices { display:flex; gap:12px; margin-top:14px; justify-content:center; }
+  .deception-btn {
+    padding:8px 20px; border:1px solid var(--purple); color:var(--purple);
+    background:transparent; font-family:'Orbitron',monospace; font-size:.7rem;
+    cursor:pointer; border-radius:3px; transition:all .2s;
+  }
+  .deception-btn:hover { background:var(--purple); color:#fff; }
+
+  /* ── RESULTS ── */
+  #result-screen {
+    background:radial-gradient(ellipse at center, #060d1c 0%, #020608 100%);
+    flex-direction:column; gap:20px; padding:30px; overflow-y:auto;
+    align-items:center;
+  }
+  .result-title { font-family:'Orbitron',monospace; font-size:2rem; font-weight:900; letter-spacing:.2em; }
+  .result-title.LOW { color:var(--low-color); text-shadow:0 0 30px var(--low-color); }
+  .result-title.MEDIUM { color:var(--med-color); text-shadow:0 0 30px var(--med-color); }
+  .result-title.HIGH { color:var(--high-color); text-shadow:0 0 30px var(--high-color); }
+  .result-badge { font-family:'Share Tech Mono',monospace; font-size:.9rem; color:var(--text-dim); }
+  .result-grid {
+    display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; max-width:900px;
+  }
+  .result-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:4px;
+    padding:14px; display:flex; flex-direction:column; gap:4px;
+  }
+  .result-card-label { font-family:'Orbitron',monospace; font-size:.6rem; color:var(--text-dim); letter-spacing:.15em; }
+  .result-card-val { font-family:'Share Tech Mono',monospace; font-size:1.1rem; color:var(--accent); font-weight:700; }
+  .result-card-note { font-size:.65rem; color:var(--text-dim); line-height:1.4; }
+  .result-reasons {
+    max-width:700px; width:100%; background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:16px;
+  }
+  .result-reasons h3 { font-family:'Orbitron',monospace; font-size:.75rem; color:var(--accent); letter-spacing:.2em; margin-bottom:10px; }
+  .reason-item {
+    font-family:'Share Tech Mono',monospace; font-size:.75rem; color:var(--text-dim);
+    padding:4px 0; border-bottom:1px solid rgba(26,58,110,.3); display:flex; align-items:center; gap:8px;
+  }
+  .reason-item .ri { font-size:.65rem; padding:2px 6px; border-radius:2px; }
+  .reason-item .ri.high { background:rgba(255,34,68,.2); color:var(--red); }
+  .reason-item .ri.med { background:rgba(255,204,0,.15); color:var(--warn); }
+  .reason-item .ri.low { background:rgba(57,255,20,.15); color:var(--green); }
+
+  .result-actions { display:flex; gap:12px; }
+  .result-btn {
+    padding:12px 28px; border:2px solid var(--accent); color:var(--accent);
+    background:transparent; font-family:'Orbitron',monospace; font-size:.75rem;
+    cursor:pointer; border-radius:3px; letter-spacing:.1em; transition:all .2s;
+  }
+  .result-btn:hover { background:var(--accent); color:#000; box-shadow:0 0 20px var(--accent); }
+  .result-btn.primary { background:var(--accent); color:#000; }
+  .result-btn.primary:hover { box-shadow:0 0 30px var(--accent); }
+
+  /* ── UTILITY ── */
+  .glitch {
+    animation: glitch .15s infinite;
+  }
+  @keyframes glitch {
+    0%{transform:translate(0)} 25%{transform:translate(-2px,1px)} 50%{transform:translate(2px,-1px)} 75%{transform:translate(-1px,2px)} 100%{transform:translate(0)}
+  }
+  .screen-flash {
+    animation:flash .3s;
+  }
+  @keyframes flash { 0%{filter:brightness(3)} 100%{filter:brightness(1)} }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  /* ── CROSSHAIR ON CANVAS ── */
+  #radar-canvas { cursor:none; }
+
+  /* ── COMBO BONUS ── */
+  #combo-display {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Orbitron',monospace; font-size:1.5rem; color:var(--green);
+    font-weight:900; pointer-events:none; z-index:40; opacity:0;
+    text-shadow:0 0 20px var(--green);
+  }
+  #combo-display.perfect { color:#ffcc00; text-shadow:0 0 30px #ffcc00, 0 0 60px rgba(255,204,0,.4); font-size:1.8rem; }
+  #combo-display.milestone { color:var(--accent); text-shadow:0 0 30px var(--accent), 0 0 60px rgba(0,212,255,.4); font-size:1.6rem; }
+  #combo-display.streak { color:var(--purple); text-shadow:0 0 30px var(--purple), 0 0 60px rgba(191,95,255,.4); }
+  #combo-display.rankup { color:#39ff14; text-shadow:0 0 30px #39ff14, 0 0 80px rgba(57,255,20,.5); font-size:2rem; }
+
+  /* Streak glow on typing panel */
+  #cmd-panel.streak-active { border-color:var(--purple); box-shadow:0 0 16px rgba(191,95,255,.25); transition:border-color .4s, box-shadow .4s; }
+  #cmd-panel.streak-hot    { border-color:var(--warn);   box-shadow:0 0 20px rgba(255,204,0,.3);   transition:border-color .4s, box-shadow .4s; }
+  #cmd-panel.streak-fire   { border-color:var(--red);    box-shadow:0 0 24px rgba(255,34,68,.35);  transition:border-color .4s, box-shadow .4s; animation:streak-pulse 1s infinite alternate; }
+  @keyframes streak-pulse { from{box-shadow:0 0 12px rgba(255,34,68,.2)} to{box-shadow:0 0 28px rgba(255,34,68,.5)} }
+
+  /* Milestone toast */
+  #milestone-toast {
+    position:fixed; top:80px; left:50%; transform:translateX(-50%);
+    font-family:'Orbitron',monospace; font-size:.82rem; font-weight:700;
+    color:#000; background:var(--warn); padding:8px 24px; border-radius:4px;
+    letter-spacing:.12em; pointer-events:none; z-index:55; opacity:0;
+    box-shadow:0 0 30px rgba(255,204,0,.5);
+    transition:opacity .3s, transform .3s;
+  }
+  #milestone-toast.active { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* Score pop */
+  .score-pop {
+    position:fixed; pointer-events:none; z-index:42;
+    font-family:'Share Tech Mono',monospace; font-size:.85rem; font-weight:700;
+    opacity:0; animation:score-float 1.2s ease-out forwards;
+  }
+  @keyframes score-float {
+    0%  { opacity:1; transform:translateY(0) scale(1); }
+    60% { opacity:1; transform:translateY(-30px) scale(1.1); }
+    100%{ opacity:0; transform:translateY(-50px) scale(0.8); }
+  }
+
+  .pulse { animation:ring-pulse .6s ease-out; }
+  @keyframes ring-pulse { 0%{transform:scale(1); opacity:1} 100%{transform:scale(2); opacity:0} }
+
+  /* ── SETTINGS SCREEN ── */
+  #settings-screen {
+    background:radial-gradient(ellipse at center, #061020 0%, #020608 100%);
+    flex-direction:column; align-items:center; gap:0; padding:32px 24px;
+    overflow-y:auto;
+  }
+  .settings-header {
+    font-family:'Orbitron',monospace; font-size:1.6rem; font-weight:900;
+    color:var(--accent); letter-spacing:.2em; margin-bottom:6px;
+    text-shadow:0 0 24px rgba(0,212,255,.5);
+  }
+  .settings-sub {
+    font-family:'Share Tech Mono',monospace; color:var(--text-dim); font-size:.8rem;
+    margin-bottom:28px; letter-spacing:.1em;
+  }
+  .settings-tabs {
+    display:flex; gap:0; margin-bottom:0;
+    border-bottom:2px solid var(--border);
+  }
+  .stab {
+    font-family:'Orbitron',monospace; font-size:.78rem; font-weight:700;
+    padding:10px 32px; border:2px solid transparent; border-bottom:none;
+    cursor:pointer; letter-spacing:.15em; background:transparent;
+    transition:all .2s; margin-bottom:-2px; border-radius:4px 4px 0 0;
+  }
+  .stab.low  { color:var(--low-color);  }
+  .stab.medium { color:var(--med-color); }
+  .stab.high { color:var(--high-color); }
+  .stab.low.active  { border-color:var(--low-color);  background:rgba(57,255,20,.08);  color:var(--low-color); }
+  .stab.medium.active { border-color:var(--med-color); background:rgba(255,204,0,.08);  color:var(--med-color);}
+  .stab.high.active { border-color:var(--high-color); background:rgba(255,34,68,.08); color:var(--high-color);}
+  .settings-panel {
+    width:100%; max-width:680px;
+    background:var(--panel); border:1px solid var(--border);
+    border-top:none; border-radius:0 0 6px 6px;
+    padding:28px 32px; display:none; flex-direction:column; gap:22px;
+  }
+  .settings-panel.active { display:flex; }
+  .srow {
+    display:flex; align-items:center; gap:18px;
+  }
+  .srow-label {
+    flex:1; font-family:'Orbitron',monospace; font-size:.72rem; color:var(--text);
+    letter-spacing:.1em; line-height:1.4;
+  }
+  .srow-label small {
+    display:block; font-family:'Share Tech Mono',monospace; font-size:.65rem;
+    color:var(--text-dim); margin-top:3px; letter-spacing:0;
+  }
+  .srow-input {
+    width:110px; background:rgba(0,0,0,.5); border:1px solid var(--border-glow);
+    color:var(--accent); font-family:'Share Tech Mono',monospace; font-size:.88rem;
+    padding:7px 10px; border-radius:3px; outline:none; text-align:right;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .srow-input:focus { border-color:var(--accent); box-shadow:0 0 8px rgba(0,212,255,.25); }
+  .srow-unit {
+    font-family:'Share Tech Mono',monospace; font-size:.72rem; color:var(--text-dim);
+    min-width:28px;
+  }
+  .settings-divider {
+    border:none; border-top:1px solid var(--border); margin:4px 0;
+  }
+  .settings-section-title {
+    font-family:'Orbitron',monospace; font-size:.62rem; color:var(--text-dim);
+    letter-spacing:.25em; padding-bottom:4px;
+    border-bottom:1px solid rgba(26,58,110,.5);
+  }
+  .settings-actions {
+    display:flex; gap:14px; justify-content:center; margin-top:20px;
+  }
+  .settings-btn {
+    padding:11px 36px; border:2px solid var(--accent); border-radius:4px;
+    font-family:'Orbitron',monospace; font-size:.78rem; font-weight:700;
+    cursor:pointer; letter-spacing:.12em; background:transparent; color:var(--accent);
+    transition:all .2s;
+  }
+  .settings-btn:hover { background:var(--accent); color:#000; box-shadow:0 0 20px var(--accent); }
+  .settings-btn.secondary { border-color:var(--text-dim); color:var(--text-dim); }
+  .settings-btn.secondary:hover { background:var(--text-dim); color:#000; box-shadow:none; }
+  .settings-saved-msg {
+    font-family:'Share Tech Mono',monospace; font-size:.75rem; color:var(--green);
+    text-align:center; height:18px; transition:opacity .5s;
+  }
+
+  /* ── TRANSITION SCREEN ── */
+  #transition-screen {
+    background:radial-gradient(ellipse at center, #061020 0%, #020608 100%);
+    flex-direction:column; align-items:center; gap:22px;
+  }
+  .trans-badge {
+    font-family:'Orbitron',monospace; font-size:.75rem; color:var(--text-dim);
+    letter-spacing:.3em; padding:4px 18px; border:1px solid var(--border);
+    border-radius:2px; background:rgba(0,0,0,.3);
+  }
+  .trans-title {
+    font-family:'Orbitron',monospace; font-size:1.6rem; font-weight:900;
+    letter-spacing:.2em; text-align:center;
+  }
+  .trans-title.LOW    { color:var(--low-color);  text-shadow:0 0 24px var(--low-color); }
+  .trans-title.MEDIUM { color:var(--med-color);  text-shadow:0 0 24px var(--med-color); }
+  .trans-title.HIGH   { color:var(--high-color); text-shadow:0 0 24px var(--high-color); }
+  .trans-desc {
+    font-family:'Share Tech Mono',monospace; font-size:.92rem; color:var(--text);
+    text-align:center; max-width:540px; line-height:1.8;
+  }
+  .trans-desc .hi  { color:var(--warn); font-weight:700; }
+  .trans-continue-btn {
+    padding:14px 52px; border:2px solid var(--accent); border-radius:4px;
+    font-family:'Orbitron',monospace; font-size:.9rem; font-weight:700;
+    cursor:pointer; background:transparent; color:var(--accent);
+    letter-spacing:.15em; transition:all .2s; margin-top:4px;
+  }
+  .trans-continue-btn:hover { background:var(--accent); color:#000; box-shadow:0 0 24px var(--accent); }
+
+  #tutorial-screen {
+    background:radial-gradient(ellipse at center, #061020 0%, #020608 100%);
+    flex-direction:column; align-items:center; justify-content:center; gap:20px;
+  }
+  .tut-header {
+    font-family:'Orbitron',monospace; font-size:1.5rem; font-weight:900;
+    color:var(--accent); letter-spacing:.2em; text-align:center;
+    text-shadow:0 0 24px rgba(0,212,255,.5);
+  }
+  .tut-phase-indicator {
+    display:flex; gap:10px; align-items:center;
+  }
+  .tut-phase-dot {
+    width:12px; height:12px; border-radius:50%;
+    border:2px solid var(--text-dim); background:transparent; transition:all .4s;
+  }
+  .tut-phase-dot.active { background:var(--accent); border-color:var(--accent); box-shadow:0 0 10px var(--accent); }
+  .tut-phase-dot.done   { background:var(--green);  border-color:var(--green); }
+  .tut-phase-label {
+    font-family:'Share Tech Mono',monospace; font-size:.85rem; color:var(--text-dim);
+    text-align:center; max-width:480px; line-height:1.6;
+  }
+  .tut-phase-label strong { color:var(--accent); }
+  .tut-timer-wrap {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .tut-timer {
+    font-family:'Orbitron',monospace; font-size:2.8rem; font-weight:900;
+    color:var(--warn); text-shadow:0 0 20px rgba(255,204,0,.5);
+  }
+  .tut-timer-label {
+    font-family:'Share Tech Mono',monospace; font-size:.7rem; color:var(--text-dim); letter-spacing:.2em;
+  }
+  .tut-skip-btn {
+    padding:10px 28px; border:1px solid var(--text-dim); border-radius:4px;
+    font-family:'Orbitron',monospace; font-size:.72rem; font-weight:700;
+    cursor:pointer; background:transparent; color:var(--text-dim);
+    letter-spacing:.1em; transition:all .2s; margin-top:8px;
+  }
+  .tut-skip-btn:hover { background:var(--text-dim); color:#000; }
+
+  /* ── TUTORIAL BETWEEN-PHASE OVERLAY ── */
+  #tut-phase-overlay {
+    position:fixed; inset:0; z-index:100;
+    background:rgba(4,8,16,.92);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    display:none;
+  }
+  #tut-phase-overlay.active { display:flex; }
+  .tut-overlay-title {
+    font-family:'Orbitron',monospace; font-size:1.3rem; font-weight:900;
+    color:var(--accent); letter-spacing:.2em; text-align:center;
+  }
+  .tut-overlay-body {
+    font-family:'Share Tech Mono',monospace; font-size:.9rem; color:var(--text);
+    text-align:center; max-width:520px; line-height:1.7;
+  }
+  .tut-overlay-body strong { color:var(--warn); }
+  .tut-overlay-countdown {
+    font-family:'Orbitron',monospace; font-size:2rem; color:var(--green); font-weight:900;
+  }
+  .tut-overlay-btn {
+    padding:12px 36px; border:2px solid var(--accent); border-radius:4px;
+    font-family:'Orbitron',monospace; font-size:.8rem; font-weight:700;
+    cursor:pointer; background:transparent; color:var(--accent);
+    letter-spacing:.12em; transition:all .2s;
+  }
+  .tut-overlay-btn:hover { background:var(--accent); color:#000; box-shadow:0 0 20px var(--accent); }
+
+  /* ── TUTORIAL COMPLETE SCREEN ── */
+  #tut-complete-screen {
+    background:radial-gradient(ellipse at center, #061020 0%, #020608 100%);
+    flex-direction:column; align-items:center; gap:18px;
+  }
+  .tut-complete-title {
+    font-family:'Orbitron',monospace; font-size:1.8rem; font-weight:900;
+    color:var(--green); letter-spacing:.2em; text-shadow:0 0 30px var(--green);
+  }
+  .tut-complete-sub {
+    font-family:'Share Tech Mono',monospace; font-size:.85rem; color:var(--text-dim);
+    text-align:center; max-width:500px; line-height:1.6;
+  }
+  .tut-level-btns { display:flex; gap:14px; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<!-- STARFIELD -->
+<canvas id="starfield"></canvas>
+
+<!-- ═══ INTRO SCREEN ═══ -->
+<div id="intro-screen" class="screen">
+  <div class="logo-wrap">
+    <div class="logo-title">NEUROPILOT</div>
+    <div class="logo-sub">COGNITIVE LOAD ARENA · v2.0</div>
+  </div>
+  <div class="intro-desc">
+    You are a deep-space Mission Control operator. Manage simultaneous tasks under escalating pressure.<br>
+    Your <strong style="color:var(--accent)">typing precision</strong>, <strong style="color:var(--accent2)">mouse behavior</strong>, and <strong style="color:var(--purple)">response patterns</strong> are analyzed in real-time to classify cognitive load.<br><br>
+    Complete the optional <strong style="color:var(--warn)">Tutorial</strong> to learn the tasks, then progress through<br>
+    <strong style="color:var(--low-color)">LOW</strong> → <strong style="color:var(--med-color)">MEDIUM</strong> → <strong style="color:var(--high-color)">HIGH</strong>, or click <strong style="color:var(--accent)">START</strong> to begin directly.
+  </div>
+  <div style="display:flex;gap:16px;margin-bottom:4px;align-items:center;">
+    <button class="level-btn" style="border-color:var(--warn);color:var(--warn);padding:14px 32px;font-size:.85rem;" onclick="startTutorial()">◈ TUTORIAL</button>
+    <button class="level-btn" style="border-color:var(--accent);color:var(--accent);padding:14px 32px;font-size:.85rem;" onclick="startDirectly()">▶ START</button>
+  </div>
+  <div class="level-select" id="level-select-wrap">
+    <button class="level-btn low" id="btn-LOW" onclick="startGame('LOW')">▲ LOW LOAD</button>
+    <button class="level-btn medium" id="btn-MEDIUM" onclick="startGame('MEDIUM')">◆ MEDIUM LOAD</button>
+    <button class="level-btn high" id="btn-HIGH" onclick="startGame('HIGH')">★ HIGH LOAD</button>
+  </div>
+  <div style="font-family:'Share Tech Mono',monospace; font-size:.7rem; color:var(--text-dim); text-align:center; margin-top:4px;" id="intro-duration-hint">
+    LOW: 60s · MEDIUM: 90s · HIGH: 120s &nbsp;|&nbsp; All 17 cognitive features scored
+  </div>
+  <div style="font-family:'Share Tech Mono',monospace; font-size:.68rem; color:var(--text-dim); text-align:center;" id="intro-session-hint"></div>
+  <div style="display:flex;gap:10px;margin-top:4px;">
+    <button class="level-btn" style="border-color:var(--text-dim);color:var(--text-dim);padding:10px 24px;font-size:.75rem;" onclick="showSettings()">⚙ SETTINGS</button>
+    <button class="level-btn" style="border-color:var(--text-dim);color:var(--text-dim);padding:10px 24px;font-size:.75rem;" onclick="showTutorialSettings()">⚙ TUTORIAL SETTINGS</button>
+  </div>
+</div>
+
+
+<!-- ═══ TUTORIAL SETTINGS SCREEN ═══ -->
+<div id="tutorial-settings-screen" class="screen hidden" style="
+  flex-direction:column; align-items:stretch; justify-content:flex-start;
+  background:radial-gradient(ellipse at center, #061020 0%, #020608 100%);
+  overflow:hidden; padding:0;
+">
+  <!-- Fixed header -->
+  <div style="padding:28px 0 10px; text-align:center; flex-shrink:0;">
+    <div class="settings-header">⚙ TUTORIAL PARAMETERS</div>
+    <div class="settings-sub">Configure each tutorial phase · Changes apply immediately</div>
+  </div>
+
+  <!-- Scrollable config area -->
+  <div style="flex:1; overflow-y:auto; padding:0 0 20px;">
+    <div style="max-width:640px; margin:0 auto; display:flex; flex-direction:column; gap:0; padding:0 24px;">
+
+      <!-- PHASE 1 -->
+      <div class="settings-section-title" style="margin-top:8px;">PHASE 1 — TYPING ONLY</div>
+      <div class="srow">
+        <div class="srow-label">Phase Duration<small>How long the typing-only phase lasts</small></div>
+        <input class="srow-input" type="number" id="tut-phase1-duration" min="10" max="120" step="5" value="20">
+        <span class="srow-unit">sec</span>
+      </div>
+
+      <hr class="settings-divider">
+
+      <!-- PHASE 2 -->
+      <div class="settings-section-title">PHASE 2 — SATELLITES ONLY</div>
+      <div class="srow">
+        <div class="srow-label">Phase Duration<small>How long the satellite-only phase lasts</small></div>
+        <input class="srow-input" type="number" id="tut-phase2-duration" min="10" max="120" step="5" value="20">
+        <span class="srow-unit">sec</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Satellite Spawn Interval<small>How often a satellite appears</small></div>
+        <input class="srow-input" type="number" id="tut-phase2-satInterval" min="3" max="60" step="1" value="5">
+        <span class="srow-unit">sec</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Satellite Time Limit<small>Seconds before satellite escapes</small></div>
+        <input class="srow-input" type="number" id="tut-phase2-satLifetime" min="3" max="60" step="1" value="10">
+        <span class="srow-unit">sec</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Satellite Speed<small>Orbital speed multiplier</small></div>
+        <input class="srow-input" type="number" id="tut-phase2-satSpeed" min="0.1" max="3.0" step="0.05" value="0.35">
+        <span class="srow-unit">×</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Satellite Size<small>Radius multiplier</small></div>
+        <input class="srow-input" type="number" id="tut-phase2-satSize" min="0.5" max="3.0" step="0.1" value="1.0">
+        <span class="srow-unit">×</span>
+      </div>
+
+      <hr class="settings-divider">
+
+      <!-- PHASE 3 -->
+      <div class="settings-section-title">PHASE 3 — ALERTS ONLY</div>
+      <div class="srow">
+        <div class="srow-label">Phase Duration<small>How long the alert-only phase lasts</small></div>
+        <input class="srow-input" type="number" id="tut-phase3-duration" min="10" max="120" step="5" value="20">
+        <span class="srow-unit">sec</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Alert Spawn Interval<small>How often a popup alert appears</small></div>
+        <input class="srow-input" type="number" id="tut-phase3-alertInterval" min="3" max="60" step="1" value="8">
+        <span class="srow-unit">sec</span>
+      </div>
+      <div class="srow">
+        <div class="srow-label">Alert Time Limit<small>Seconds before alert expires</small></div>
+        <input class="srow-input" type="number" id="tut-phase3-alertLifetime" min="3" max="60" step="1" value="15">
+        <span class="srow-unit">sec</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Pinned footer -->
+  <div style="flex-shrink:0; border-top:1px solid var(--border); background:rgba(4,8,16,.95); padding:14px 24px;">
+    <div class="settings-saved-msg" id="tut-settings-saved-msg" style="margin-bottom:10px;"></div>
+    <div class="settings-actions" style="justify-content:center; flex-wrap:wrap; gap:10px;">
+      <button class="settings-btn secondary" onclick="showIntro()">⌂ HOME</button>
+      <button class="settings-btn secondary" onclick="resetTutorialSettings()">↺ RESET DEFAULTS</button>
+      <button class="settings-btn secondary" onclick="exportTutorialSettings()">⬇ EXPORT</button>
+      <button class="settings-btn secondary" onclick="document.getElementById('tut-import-input').click()">⬆ IMPORT</button>
+      <input type="file" id="tut-import-input" accept=".json" style="display:none" onchange="importTutorialSettings(event)">
+      <button class="settings-btn" onclick="saveTutorialSettings()">✓ SAVE &amp; RETURN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TUTORIAL PHASE TRANSITION OVERLAY ═══ -->
+<div id="tut-phase-overlay">
+  <div class="tut-overlay-title" id="tut-overlay-title">PHASE 1 COMPLETE</div>
+  <div class="tut-overlay-body" id="tut-overlay-body">Great work! Now get ready for Phase 2.</div>
+  <div class="tut-overlay-countdown" id="tut-overlay-countdown">3</div>
+  <button class="tut-overlay-btn" id="tut-overlay-btn">▶ BEGIN NOW</button>
+</div>
+
+<!-- ═══ TUTORIAL COMPLETE SCREEN ═══ -->
+<div id="tut-complete-screen" class="screen hidden">
+  <div class="tut-complete-title">✓ TUTORIAL COMPLETE</div>
+  <div class="tut-complete-sub">
+    Your baseline neural signature has been recorded.<br>
+    You are ready to begin the main experiment.
+  </div>
+  <div style="max-width:520px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:.88rem;color:var(--text);line-height:1.9;
+    background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.2);border-radius:4px;padding:18px 24px;">
+    <span style="color:var(--warn);font-family:'Orbitron',monospace;font-size:.75rem;letter-spacing:.2em;">LEVEL: LOW LOAD</span><br>
+    You will now perform all three tasks <strong style="color:var(--accent)">simultaneously</strong>:<br>
+    typing commands · clicking satellites · responding to alerts<br>
+    <span style="color:var(--text-dim);font-size:.78rem;">This continues through MEDIUM and HIGH difficulty.</span>
+  </div>
+  <div style="display:flex;gap:20px;margin-top:4px;">
+    <button class="tut-skip-btn" onclick="startTutorial()">↺ TRY AGAIN</button>
+    <button class="trans-continue-btn" onclick="startGame('LOW')">▶ CONTINUE TO LOW</button>
+  </div>
+</div>
+
+<!-- ═══ TRANSITION SCREEN (LOW→MEDIUM and MEDIUM→HIGH) ═══ -->
+<div id="transition-screen" class="screen hidden">
+  <div class="trans-badge" id="trans-badge">LEVEL COMPLETE</div>
+  <div class="trans-title" id="trans-title">LOW COMPLETE</div>
+  <div class="trans-desc" id="trans-desc">Preparing next level…</div>
+  <button class="trans-continue-btn" id="trans-continue-btn" onclick="goNextLevel()">▶ CONTINUE</button>
+</div>
+
+<div id="settings-screen" class="screen hidden">
+  <div class="settings-header">⚙ MISSION PARAMETERS</div>
+  <div class="settings-sub">Customize each difficulty level · Changes apply immediately</div>
+
+  <!-- Tabs -->
+  <div class="settings-tabs" style="width:100%;max-width:680px;">
+    <button class="stab low active"    onclick="switchSettingsTab('LOW')"   id="stab-LOW">▲ LOW</button>
+    <button class="stab medium"        onclick="switchSettingsTab('MEDIUM')" id="stab-MEDIUM">◆ MEDIUM</button>
+    <button class="stab high"          onclick="switchSettingsTab('HIGH')"   id="stab-HIGH">★ HIGH</button>
+  </div>
+  <div class="settings-panel active" id="spanel-LOW">
+    <div class="settings-section-title">SESSION PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Session Duration<small>Total game time before results are shown</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-sessionDuration" min="10" max="600" step="5" value="60">
+      <span class="srow-unit">sec</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">SATELLITE PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Satellite Spawn Frequency<small>How often a new satellite appears</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-satInterval" min="3" max="120" step="1" value="30">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Time Limit<small>Seconds before an unclicked satellite escapes</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-satLifetime" min="3" max="60" step="1" value="20">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Speed<small>Orbital speed multiplier (0.1 = slow, 3.0 = very fast)</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-satSpeed" min="0.1" max="3.0" step="0.05" value="0.15">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Size<small>Radius multiplier (0.5 = small, 2.0 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-satSize" min="0.5" max="3.0" step="0.1" value="3.0">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">ALERT POPUP PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Alert Spawn Frequency<small>How often a new popup alert appears</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-alertInterval" min="3" max="120" step="1" value="25">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Alert Time Limit<small>Seconds before an unresolved alert expires</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-alertLifetime" min="3" max="60" step="1" value="20">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Size<small>Width of the alert popup window (0.7 = compact, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-popupSize" min="0.5" max="2.0" step="0.1" value="1.4">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Text Font Size<small>Font size of title, body &amp; code input inside alert popups (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-popupFontSize" min="0.5" max="2.0" step="0.1" value="1.4">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">TYPING AREA</div>
+    <div class="srow">
+      <div class="srow-label">Command Text Font Size<small>Scale of the command prompt and input box text (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-LOW-inputFontSize" min="0.5" max="2.0" step="0.1" value="1.5">
+      <span class="srow-unit">×</span>
+    </div>
+  </div>
+  <div class="settings-panel" id="spanel-MEDIUM">
+    <div class="settings-section-title">SESSION PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Session Duration<small>Total game time before results are shown</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-sessionDuration" min="10" max="600" step="5" value="90">
+      <span class="srow-unit">sec</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">SATELLITE PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Satellite Spawn Frequency<small>How often a new satellite appears</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-satInterval" min="3" max="120" step="1" value="25">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Time Limit<small>Seconds before an unclicked satellite escapes</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-satLifetime" min="3" max="60" step="1" value="15">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Speed<small>Orbital speed multiplier (0.1 = slow, 3.0 = very fast)</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-satSpeed" min="0.1" max="3.0" step="0.05" value="0.25">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Size<small>Radius multiplier (0.5 = small, 2.0 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-satSize" min="0.5" max="3.0" step="0.1" value="2.5">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">ALERT POPUP PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Alert Spawn Frequency<small>How often a new popup alert appears</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-alertInterval" min="3" max="120" step="1" value="20">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Alert Time Limit<small>Seconds before an unresolved alert expires</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-alertLifetime" min="3" max="60" step="1" value="17">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Size<small>Width &amp; text scale (0.7 = compact, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-popupSize" min="0.5" max="2.0" step="0.1" value="1.4">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Text Font Size<small>Font size of title, body &amp; code input inside alert popups (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-popupFontSize" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">TYPING AREA</div>
+    <div class="srow">
+      <div class="srow-label">Command Text Font Size<small>Scale of the command prompt and input box text (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-MEDIUM-inputFontSize" min="0.5" max="2.0" step="0.1" value="1.3">
+      <span class="srow-unit">×</span>
+    </div>
+  </div>
+
+  <!-- HIGH panel -->
+  <div class="settings-panel" id="spanel-HIGH">
+    <div class="settings-section-title">SESSION PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Session Duration<small>Total game time before results are shown</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-sessionDuration" min="10" max="600" step="5" value="120">
+      <span class="srow-unit">sec</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">SATELLITE PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Satellite Spawn Frequency<small>How often a new satellite appears</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-satInterval" min="3" max="120" step="1" value="20">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Time Limit<small>Seconds before an unclicked satellite escapes</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-satLifetime" min="3" max="60" step="1" value="12">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Speed<small>Orbital speed multiplier (0.1 = slow, 3.0 = very fast)</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-satSpeed" min="0.1" max="3.0" step="0.05" value="0.35">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Satellite Size<small>Radius multiplier (0.5 = small, 2.0 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-satSize" min="0.5" max="3.0" step="0.1" value="2.0">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">ALERT POPUP PARAMETERS</div>
+    <div class="srow">
+      <div class="srow-label">Alert Spawn Frequency<small>How often a new popup alert appears</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-alertInterval" min="3" max="120" step="1" value="16">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Alert Time Limit<small>Seconds before an unresolved alert expires</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-alertLifetime" min="3" max="60" step="1" value="14">
+      <span class="srow-unit">sec</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Size<small>Width &amp; text scale (0.7 = compact, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-popupSize" min="0.5" max="2.0" step="0.1" value="1.2">
+      <span class="srow-unit">×</span>
+    </div>
+    <div class="srow">
+      <div class="srow-label">Popup Text Font Size<small>Font size of title, body &amp; code input inside alert popups (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-popupFontSize" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="srow-unit">×</span>
+    </div>
+    <hr class="settings-divider">
+    <div class="settings-section-title">TYPING AREA</div>
+    <div class="srow">
+      <div class="srow-label">Command Text Font Size<small>Scale of the command prompt and input box text (0.7 = small, 1.5 = large)</small></div>
+      <input class="srow-input" type="number" id="cfg-HIGH-inputFontSize" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="srow-unit">×</span>
+    </div>
+  </div>
+
+  <div class="settings-saved-msg" id="settings-saved-msg"></div>
+  <div class="settings-actions">
+    <button class="settings-btn secondary" onclick="showIntro()" title="Return to home without saving changes">⌂ HOME</button>
+    <button class="settings-btn secondary" onclick="resetSettingsToDefaults()">↺ RESET DEFAULTS</button>
+    <button class="settings-btn secondary" onclick="exportSettings()" title="Download settings as JSON file">⬇ EXPORT</button>
+    <button class="settings-btn secondary" onclick="document.getElementById('import-file-input').click()" title="Load settings from JSON file">⬆ IMPORT</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importSettings(event)">
+    <button class="settings-btn" onclick="saveSettings()">✓ SAVE &amp; RETURN</button>
+  </div>
+</div>
+<div id="game-screen" class="screen hidden">
+
+  <!-- TOP HUD -->
+  <div class="hud-top">
+    <div class="hud-logo">NEUROPILOT // MC-7</div>
+    <div class="hud-stat">SESSION <span id="session-id">--</span></div>
+    <div class="hud-stat">LOAD <span id="load-badge">LOW</span></div>
+    <div class="hud-sep"></div>
+    <div class="hud-stat">WPM <span id="hud-wpm">0</span></div>
+    <div class="hud-stat">ERR <span id="hud-err">0%</span></div>
+    <div class="hud-stat">CMD <span id="hud-cmd" style="color:var(--accent);">0</span></div>
+    <div class="hud-stat">STREAK <span id="hud-streak" style="color:var(--green);">0</span></div>
+    <div class="hud-stat">SCORE <span id="hud-score">0</span></div>
+    <div class="hud-stat" id="hud-rank-wrap" style="border-color:var(--accent);"><span id="hud-rank" style="color:var(--accent);font-weight:700;letter-spacing:.08em;">CADET</span></div>
+    <div class="hud-stat" id="timer-display">⏱ <span id="hud-timer">60</span>s</div>
+    <button onclick="endGameToHome()" style="
+      font-family:'Orbitron',monospace; font-size:.68rem; font-weight:700;
+      padding:5px 14px; border:1px solid var(--danger); border-radius:2px;
+      color:var(--danger); background:rgba(255,34,68,.08); cursor:pointer;
+      letter-spacing:.08em; transition:all .2s; margin-left:4px;
+    " onmouseover="this.style.background='rgba(255,34,68,.25)'" onmouseout="this.style.background='rgba(255,34,68,.08)'">
+      ✕ END GAME
+    </button>
+  </div>
+
+  <!-- MAIN BODY -->
+  <div class="game-body">
+
+    <!-- LEFT: Command Typing -->
+    <div class="panel" id="cmd-panel">
+      <div class="panel-header"><span class="dot"></span>MISSION COMMANDS</div>
+      <div class="cmd-body">
+        <div class="mission-prompt">
+          <span class="prompt-label">► TRANSMIT COMMAND:</span>
+          <div id="type-target"></div>
+        </div>
+        <div class="cmd-progress"><div class="cmd-progress-bar" id="cmd-progress"></div></div>
+        <div class="type-input-wrap">
+          <input type="text" id="type-input" placeholder="Begin typing command…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="override-box" id="override-box">
+          <div class="override-label">⚠ EMERGENCY OVERRIDE REQUIRED</div>
+          <input type="text" id="override-input" placeholder="Type override code…" autocomplete="off">
+        </div>
+        <!-- Real-time metrics -->
+        <div class="metrics-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0;flex:none;">
+          <div class="metric-cell"><div class="metric-label">TYPING SPD</div><div class="metric-val" id="m-wpm">—</div></div>
+          <div class="metric-cell"><div class="metric-label">ERROR RATE</div><div class="metric-val" id="m-err">—</div></div>
+          <div class="metric-cell"><div class="metric-label">BACKSPACE</div><div class="metric-val" id="m-bsp">—</div></div>
+          <div class="metric-cell"><div class="metric-label">CORRECTION Δ</div><div class="metric-val" id="m-clt">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Radar / Tracking Canvas -->
+    <div class="panel" id="radar-panel">
+      <div class="panel-header"><span class="dot" style="background:var(--accent2)"></span>ORBITAL TRACKING ARRAY</div>
+      <canvas id="radar-canvas"></canvas>
+    </div>
+
+    <!-- RIGHT: System Status -->
+    <div class="panel" id="sys-panel">
+      <div class="panel-header"><span class="dot" style="background:var(--warn)"></span>SYSTEM STATUS</div>
+      <div class="sys-body">
+        <div class="sys-bar-item">
+          <div class="sys-bar-label">THERMAL <span id="sys-thermal">72%</span></div>
+          <div class="sys-bar-track"><div class="sys-bar-fill" id="bar-thermal" style="width:72%;background:var(--green)"></div></div>
+        </div>
+        <div class="sys-bar-item">
+          <div class="sys-bar-label">POWER CORE <span id="sys-power">88%</span></div>
+          <div class="sys-bar-track"><div class="sys-bar-fill" id="bar-power" style="width:88%;background:var(--green)"></div></div>
+        </div>
+        <div class="sys-bar-item">
+          <div class="sys-bar-label">SHIELDS <span id="sys-shield">95%</span></div>
+          <div class="sys-bar-track"><div class="sys-bar-fill" id="bar-shield" style="width:95%;background:var(--green)"></div></div>
+        </div>
+        <div class="sys-bar-item">
+          <div class="sys-bar-label">COMMS <span id="sys-comms">100%</span></div>
+          <div class="sys-bar-track"><div class="sys-bar-fill" id="bar-comms" style="width:100%;background:var(--green)"></div></div>
+        </div>
+        <div class="sys-bar-item">
+          <div class="sys-bar-label">FUEL <span id="sys-fuel">67%</span></div>
+          <div class="sys-bar-track"><div class="sys-bar-fill" id="bar-fuel" style="width:67%;background:var(--accent)"></div></div>
+        </div>
+        <div style="flex:1; margin-top:6px;">
+          <div class="panel-header" style="background:none; padding:0 0 4px; font-size:.58rem;">EVENT LOG</div>
+          <div class="alert-log" id="event-log"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM CENTER: Waveform -->
+    <div class="panel" id="wave-panel">
+      <div class="panel-header"><span class="dot" style="background:var(--purple)"></span>NEURAL RHYTHM — KEYSTROKE ENTROPY</div>
+      <canvas id="wave-canvas"></canvas>
+    </div>
+
+    <!-- BOTTOM RIGHT: Mouse Metrics -->
+    <div class="panel" id="alert-panel" style="grid-column:3;grid-row:2;">
+      <div class="panel-header"><span class="dot" style="background:var(--accent2)"></span>CURSOR TELEMETRY</div>
+      <div class="alert-body">
+        <div class="metrics-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0;">
+          <div class="metric-cell"><div class="metric-label">CUR SPEED</div><div class="metric-val" id="m-cspd">—</div></div>
+          <div class="metric-cell"><div class="metric-label">CLICK RATE</div><div class="metric-val" id="m-clk">—</div></div>
+          <div class="metric-cell"><div class="metric-label">PATH EFF</div><div class="metric-val" id="m-peff">—</div></div>
+          <div class="metric-cell"><div class="metric-label">CUR ENTROPY</div><div class="metric-val" id="m-cent">—</div></div>
+          <div class="metric-cell" style="grid-column:1/-1;"><div class="metric-label">SAT DWELL (ms)</div><div class="metric-val" id="m-hvr">—</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end game-body -->
+</div><!-- end game-screen -->
+
+<!-- ═══ POPUP ALERTS OVERLAY ═══ -->
+<div id="alert-overlay"></div>
+
+<!-- ═══ DECEPTION OVERLAY ═══ -->
+<div id="deception-overlay">
+  <div class="deception-msg">
+    <div class="deception-title">⚡ SIGNAL INTERFERENCE DETECTED</div>
+    <div class="deception-body" id="deception-text"></div>
+    <div class="deception-choices" id="deception-choices"></div>
+  </div>
+</div>
+
+<!-- ═══ COMBO DISPLAY ═══ -->
+<div id="combo-display"></div>
+
+<!-- ═══ MILESTONE TOAST ═══ -->
+<div id="milestone-toast"></div>
+
+<!-- ═══ RESULT SCREEN ═══ -->
+<div id="result-screen" class="screen hidden">
+  <div class="result-title" id="result-title">HIGH COGNITIVE LOAD</div>
+  <div class="result-badge" id="result-badge">Session complete · All data recorded</div>
+  <div class="result-grid" id="result-grid"></div>
+  <div class="result-reasons" id="result-reasons"></div>
+  <div class="result-actions">
+    <button class="result-btn primary" onclick="downloadAllCSV()">⬇ DOWNLOAD SESSION CSV (3 ROWS)</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   NEUROPILOT: COGNITIVE LOAD ARENA
+   All 17 features with psychologically-grounded thresholds
+   ═══════════════════════════════════════════════════════ */
+
+// ─── STARFIELD ───
+(function(){
+  const c = document.getElementById('starfield');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  const ctx = c.getContext('2d');
+  for(let i=0;i<200;i++){
+    const x=Math.random()*c.width, y=Math.random()*c.height, r=Math.random()*1.5+.3;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${Math.random()*.8+.2})`; ctx.fill();
+  }
+})();
+
+// ─── COMMANDS POOL ───
+const COMMANDS = {
+  LOW: [
+    "Stabilize orbit at sector 7",
+    "Engage thruster delta 15",
+    "Scan asteroid belt frequency",
+    "Activate solar panel array",
+    "Report fuel levels now",
+    "Enable gravity assist mode",
+    "Confirm landing sequence",
+    "Adjust antenna heading north",
+  ],
+  MEDIUM: [
+    "Adjust thruster velocity to 45 degrees and stabilize orbit trajectory",
+    "Override navigation lock and recalibrate to sector 9-alpha coordinates",
+    "Execute emergency burn sequence at 2.3G for 18 seconds then coast",
+    "Deploy secondary probe array targeting quadrant B7 celestial grid",
+    "Initiate orbital insertion burn at periapsis delta-v 340 m/s",
+    "Reconfigure communications array to frequency 14.7 gigahertz encrypted",
+    "Transfer power from primary hull cells to thruster subsystem alpha",
+    "Confirm attitude control lock before final deorbit burn sequence",
+  ],
+  HIGH: [
+    "PRIORITY ALPHA: Divert 40% shield power to hull sector 3, execute emergency burn at 3.8G, hold for 12 seconds",
+    "CRITICAL: Override autopilot lock code DELTA-7-NINER, realign to coordinates 112.4 by 67.8, confirm within 10 seconds",
+    "ABORT SEQUENCE: Jettison cargo bay 2, reroute thruster control via backup relay, increase velocity 220 m/s now",
+    "EMERGENCY: Simultaneously activate countermeasures, reroute power from life support nonessentials, transmit distress beacon",
+    "URGENT: Execute phased burn sequence ALPHA-BRAVO-7, simultaneously disable proximity alarm sector 4, report status",
+    "HAZARD LEVEL RED: Adjust orbital mechanics by -12.5 degrees inclination while maintaining power to shield array sector 9",
+  ]
+};
+
+const OVERRIDE_CODES = ['DELTA-7', 'OMEGA-3', 'SIGMA-9', 'ALPHA-1', 'GAMMA-5', 'ZETA-X'];
+
+const ALERTS = [
+  { type:'warn',  title:'THERMAL SPIKE', body:'Reactor temperature exceeding safe limits.', action:'click', btn:'STABILIZE' },
+  { type:'warn',  title:'COMM STATIC',   body:'Signal degradation detected on channel 7.', action:'click', btn:'BOOST SIGNAL' },
+  { type:'danger',title:'HULL BREACH',   body:'Micro-fracture detected — type override code:',  action:'type',  code: null },
+  { type:'warn',  title:'POWER SURGE',   body:'Subsystem voltage anomaly — immediate action required.', action:'click', btn:'RESET BUS' },
+  { type:'danger',title:'MEMORY FAILURE',body:'Navigation memory corrupt — type emergency restore:',    action:'type',  code: null },
+  { type:'warn',  title:'ATTITUDE DRIFT',body:'Spacecraft attitude drifting 2.3 degrees off-axis.', action:'click', btn:'CORRECT' },
+  { type:'danger',title:'FUEL LEAK',     body:'Oxidizer line breach — type shutdown code:', action:'type', code: null },
+];
+
+const DECEPTIONS = [
+  { text:'⚠ INCOMING ASTEROID — EVASIVE MANEUVER REQUIRED\nSelect the correct avoidance vector:', choices:['VECTOR A','VECTOR B','VECTOR C'], correct:1, fake:true },
+  { text:'MISSION CONTROL OVERRIDE: ABORT CURRENT COMMAND\nThis task has been superseded. Choose action:', choices:['ABORT','CONTINUE','STANDBY'], correct:1, fake:true },
+  { text:'SATELLITE SIGNAL LOST — MUST RECONNECT IMMEDIATELY\nPriority reroute — select relay:', choices:['RELAY-1','RELAY-2','RELAY-3'], correct:0, fake:true },
+];
+
+// ─── STATE ───
+let gameLevel = 'LOW';
+let sessionActive = false;
+let sessionTimer = 60;
+let sessionTick = null;
+let score = 0;
+let commandsCompleted = 0;
+let streakCount = 0;      // consecutive zero-error commands
+let bestStreak = 0;        // highest streak this session
+let perfectCommands = 0;   // total commands with zero errors
+
+// Typing metrics
+let currentCommand = '';
+let typingStartTime = null;
+let lastKeyTime = null;
+let sessionStartTime = null;
+let keyTimestamps = [];
+let errorCount = 0;
+let cumulativeErrors = 0;
+let peakErrorCount = 0;
+let totalCharsTyped = 0;
+let backspaceCount = 0;
+let correctionStartTime = null;
+let correctionLatencies = [];
+let burstStart = null;
+let lastBurstKeyTime = null;
+let burstDurations = [];
+let sentencePauses = [];
+let lastCommandEndTime = null;
+let totalWordsTyped = 0;
+let commandStartTime = null;
+let commandDisplayTime = null;
+let firstKeypressRecorded = false;
+
+// Mouse metrics
+let mouseX = 0, mouseY = 0;
+let lastMouseX = 0, lastMouseY = 0;
+let mouseSpeeds = [];
+let mousePathActual = 0;
+let mousePathDirect = 0;
+let mousePathActual_forPath = 0;  // actual path accumulated only during satellite-click attempts
+let lastMousePosForPath = null;
+let mousePathTargetX = 0, mousePathTargetY = 0;
+let clickCount = 0;
+let hoverStartTime = null;
+let hoverTimes = [];
+let mouseAngleHistory = [];
+
+// Waveform
+let intervalHistory = []; // key intervals for waveform
+
+// Radar objects
+let satellites = [];
+let radarAnimId = null;
+let waveAnimId = null;
+let radarCtx = null;
+let waveCtx = null;
+let customCursor = {x:-100, y:-100};
+
+// Alert state
+let activeAlerts = 0;
+let pendingOverrideCode = '';
+let alertTimeouts = [];
+let alertIntervalId = null;
+let deceptionTimeout = null;
+let deceptionStartTime = null;
+let alertResolveTimes = [];
+let totalAlertsTriggered = 0;   // counts every popup that fires
+let expiredAlerts = 0;          // counts popups that timed out unresolved
+
+// Override typing speed tracking (type-code popups only)
+let overrideTypingSpeeds = [];  // WPM for each override code typed
+let overrideStartTime = null;   // first keypress inside current override input
+let overrideLastKeyTime = null; // last keypress inside current override input
+let overrideCharsTyped = 0;     // chars typed in current override input
+
+// System values
+let sysValues = { thermal:72, power:88, shield:95, comms:100, fuel:67 };
+
+// ─── MASTER SESSION + TUTORIAL STATE ───
+let masterSessionId = null;       // persists across tutorial + LOW + MEDIUM + HIGH
+let tutorialDone = false;         // unlocks level buttons
+let tutorialPhase = 0;            // 1, 2, or 3
+let tutorialPhaseTimer = null;
+let tutorialPhaseCountdown = 0;
+let collectedRows = [];           // stores {level, features, score, duration} for CSV
+
+// Tutorial config (mutable via tutorial settings page)
+const TUTORIAL_CONFIG = {
+  phase1Duration: 20,
+  phase2Duration: 20,
+  phase2SatInterval: 5000,
+  phase2SatLifetime: 10000,
+  phase2SatSpeed: 0.35,
+  phase2SatSize: 1.0,
+  phase3Duration: 20,
+  phase3AlertInterval: 8000,
+  phase3AlertLifetime: 15000,
+};
+const TUTORIAL_DEFAULTS = {
+  phase1Duration: 20,
+  phase2Duration: 20,
+  phase2SatInterval: 5,
+  phase2SatLifetime: 10,
+  phase2SatSpeed: 0.35,
+  phase2SatSize: 1.0,
+  phase3Duration: 20,
+  phase3AlertInterval: 8,
+  phase3AlertLifetime: 15,
+};
+
+// ─── SESSION CONFIG (mutable — overridden by Settings) ───
+// SESSION_DURATIONS reads from GAME_CONFIG so settings can override it
+const SESSION_DURATIONS = {
+  get LOW()    { return GAME_CONFIG.LOW.sessionDuration;    },
+  get MEDIUM() { return GAME_CONFIG.MEDIUM.sessionDuration; },
+  get HIGH()   { return GAME_CONFIG.HIGH.sessionDuration;   },
+  get STD()    { return GAME_CONFIG.STD.sessionDuration;    },
+};
+
+// These are the live config objects — Settings page writes to these directly
+const GAME_CONFIG = {
+  LOW:    { sessionDuration:60,  satInterval:30000, satLifetime:20000, satSpeed:0.15, satSize:3.0, alertInterval:25000, alertLifetime:20000, popupSize:1.4, popupFontSize:1.4, inputFontSize:1.5 },
+  MEDIUM: { sessionDuration:90,  satInterval:25000, satLifetime:15000, satSpeed:0.25, satSize:2.5, alertInterval:20000, alertLifetime:17000, popupSize:1.4, popupFontSize:1.0, inputFontSize:1.3 },
+  HIGH:   { sessionDuration:120, satInterval:20000, satLifetime:12000, satSpeed:0.35, satSize:2.0, alertInterval:16000, alertLifetime:14000, popupSize:1.2, popupFontSize:1.0, inputFontSize:1.0 },
+  STD:    { sessionDuration:20,  satInterval:5000,  satLifetime:10000, satSpeed:0.35, satSize:1.0, alertInterval:8000,  alertLifetime:15000, popupSize:1.0, popupFontSize:1.0, inputFontSize:1.0 },
+};
+
+// Keep legacy aliases so existing code still works
+const ALERT_INTERVALS    = { get LOW(){ return GAME_CONFIG.LOW.alertInterval; },    get MEDIUM(){ return GAME_CONFIG.MEDIUM.alertInterval; },    get HIGH(){ return GAME_CONFIG.HIGH.alertInterval; },    get STD(){ return GAME_CONFIG.STD.alertInterval; } };
+const DECEPTION_INTERVALS = { LOW:null, MEDIUM:45000, HIGH:22000, STD:null };
+const SAT_INTERVALS      = { get LOW(){ return GAME_CONFIG.LOW.satInterval; },      get MEDIUM(){ return GAME_CONFIG.MEDIUM.satInterval; },      get HIGH(){ return GAME_CONFIG.HIGH.satInterval; },      get STD(){ return GAME_CONFIG.STD.satInterval; } };
+const SAT_LIFETIME       = { get LOW(){ return GAME_CONFIG.LOW.satLifetime; },      get MEDIUM(){ return GAME_CONFIG.MEDIUM.satLifetime; },      get HIGH(){ return GAME_CONFIG.HIGH.satLifetime; },      get STD(){ return GAME_CONFIG.STD.satLifetime; } };
+const SAT_MAX = { LOW:1, MEDIUM:2, HIGH:3, STD:1 };
+let satIntervalId = null;
+
+// ─── INIT ───
+function showIntro(){
+  document.getElementById('intro-screen').classList.remove('hidden');
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.add('hidden');
+  document.getElementById('settings-screen').classList.add('hidden');
+  document.getElementById('tutorial-settings-screen').classList.add('hidden');
+  document.getElementById('tut-complete-screen').classList.add('hidden');
+  document.getElementById('transition-screen').classList.add('hidden');
+  document.getElementById('tut-phase-overlay').classList.remove('active');
+  const h = document.getElementById('intro-duration-hint');
+  if(h) h.textContent = `LOW: ${GAME_CONFIG.LOW.sessionDuration}s · MEDIUM: ${GAME_CONFIG.MEDIUM.sessionDuration}s · HIGH: ${GAME_CONFIG.HIGH.sessionDuration}s  |  All 17 cognitive features scored`;
+  // Level buttons are always enabled — tutorial is optional
+  const wrap = document.getElementById('level-select-wrap');
+  if(wrap){ wrap.style.opacity='1'; wrap.style.pointerEvents='auto'; }
+  // Show session ID hint if a session is active
+  const hint = document.getElementById('intro-session-hint');
+  if(hint) hint.textContent = masterSessionId ? `Active Session: ${masterSessionId}` : '';
+  stopGame();
+}
+
+// ─── TUTORIAL SETTINGS ───
+function showTutorialSettings(){
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('tutorial-settings-screen').classList.remove('hidden');
+  document.getElementById('tut-phase1-duration').value    = TUTORIAL_CONFIG.phase1Duration;
+  document.getElementById('tut-phase2-duration').value    = TUTORIAL_CONFIG.phase2Duration;
+  document.getElementById('tut-phase2-satInterval').value = TUTORIAL_CONFIG.phase2SatInterval / 1000;
+  document.getElementById('tut-phase2-satLifetime').value = TUTORIAL_CONFIG.phase2SatLifetime / 1000;
+  document.getElementById('tut-phase2-satSpeed').value    = TUTORIAL_CONFIG.phase2SatSpeed;
+  document.getElementById('tut-phase2-satSize').value     = TUTORIAL_CONFIG.phase2SatSize;
+  document.getElementById('tut-phase3-duration').value    = TUTORIAL_CONFIG.phase3Duration;
+  document.getElementById('tut-phase3-alertInterval').value = TUTORIAL_CONFIG.phase3AlertInterval / 1000;
+  document.getElementById('tut-phase3-alertLifetime').value = TUTORIAL_CONFIG.phase3AlertLifetime / 1000;
+}
+
+function saveTutorialSettings(){
+  TUTORIAL_CONFIG.phase1Duration       = Math.max(10, parseFloat(document.getElementById('tut-phase1-duration').value));
+  TUTORIAL_CONFIG.phase2Duration       = Math.max(10, parseFloat(document.getElementById('tut-phase2-duration').value));
+  TUTORIAL_CONFIG.phase2SatInterval    = Math.max(3,  parseFloat(document.getElementById('tut-phase2-satInterval').value)) * 1000;
+  TUTORIAL_CONFIG.phase2SatLifetime    = Math.max(3,  parseFloat(document.getElementById('tut-phase2-satLifetime').value)) * 1000;
+  TUTORIAL_CONFIG.phase2SatSpeed       = Math.max(0.1, parseFloat(document.getElementById('tut-phase2-satSpeed').value));
+  TUTORIAL_CONFIG.phase2SatSize        = Math.max(0.5, parseFloat(document.getElementById('tut-phase2-satSize').value));
+  TUTORIAL_CONFIG.phase3Duration       = Math.max(10, parseFloat(document.getElementById('tut-phase3-duration').value));
+  TUTORIAL_CONFIG.phase3AlertInterval  = Math.max(3,  parseFloat(document.getElementById('tut-phase3-alertInterval').value)) * 1000;
+  TUTORIAL_CONFIG.phase3AlertLifetime  = Math.max(3,  parseFloat(document.getElementById('tut-phase3-alertLifetime').value)) * 1000;
+  const msg = document.getElementById('tut-settings-saved-msg');
+  msg.textContent = '✓ Tutorial settings saved';
+  msg.style.opacity='1';
+  setTimeout(()=>{ msg.style.opacity='0'; setTimeout(()=>showIntro(),400); }, 900);
+}
+
+function resetTutorialSettings(){
+  const d = TUTORIAL_DEFAULTS;
+  TUTORIAL_CONFIG.phase1Duration      = d.phase1Duration;
+  TUTORIAL_CONFIG.phase2Duration      = d.phase2Duration;
+  TUTORIAL_CONFIG.phase2SatInterval   = d.phase2SatInterval * 1000;
+  TUTORIAL_CONFIG.phase2SatLifetime   = d.phase2SatLifetime * 1000;
+  TUTORIAL_CONFIG.phase2SatSpeed      = d.phase2SatSpeed;
+  TUTORIAL_CONFIG.phase2SatSize       = d.phase2SatSize;
+  TUTORIAL_CONFIG.phase3Duration      = d.phase3Duration;
+  TUTORIAL_CONFIG.phase3AlertInterval = d.phase3AlertInterval * 1000;
+  TUTORIAL_CONFIG.phase3AlertLifetime = d.phase3AlertLifetime * 1000;
+  document.getElementById('tut-phase1-duration').value    = d.phase1Duration;
+  document.getElementById('tut-phase2-duration').value    = d.phase2Duration;
+  document.getElementById('tut-phase2-satInterval').value = d.phase2SatInterval;
+  document.getElementById('tut-phase2-satLifetime').value = d.phase2SatLifetime;
+  document.getElementById('tut-phase2-satSpeed').value    = d.phase2SatSpeed;
+  document.getElementById('tut-phase2-satSize').value     = d.phase2SatSize;
+  document.getElementById('tut-phase3-duration').value    = d.phase3Duration;
+  document.getElementById('tut-phase3-alertInterval').value = d.phase3AlertInterval;
+  document.getElementById('tut-phase3-alertLifetime').value = d.phase3AlertLifetime;
+  const msg = document.getElementById('tut-settings-saved-msg');
+  msg.textContent = '↺ Tutorial settings reset to defaults';
+  msg.style.opacity='1';
+  setTimeout(()=>{ msg.style.opacity='0'; }, 2000);
+}
+
+// ─── EXPORT TUTORIAL SETTINGS ───
+function exportTutorialSettings(){
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    tutorialConfig: {
+      phase1Duration:       TUTORIAL_CONFIG.phase1Duration,
+      phase2Duration:       TUTORIAL_CONFIG.phase2Duration,
+      phase2SatInterval:    TUTORIAL_CONFIG.phase2SatInterval / 1000,
+      phase2SatLifetime:    TUTORIAL_CONFIG.phase2SatLifetime / 1000,
+      phase2SatSpeed:       TUTORIAL_CONFIG.phase2SatSpeed,
+      phase2SatSize:        TUTORIAL_CONFIG.phase2SatSize,
+      phase3Duration:       TUTORIAL_CONFIG.phase3Duration,
+      phase3AlertInterval:  TUTORIAL_CONFIG.phase3AlertInterval / 1000,
+      phase3AlertLifetime:  TUTORIAL_CONFIG.phase3AlertLifetime / 1000,
+    }
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `neuropilot_tutorial_settings_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  const msg = document.getElementById('tut-settings-saved-msg');
+  msg.textContent = '⬇ Tutorial settings exported successfully';
+  msg.style.opacity = '1';
+  setTimeout(()=>{ msg.style.opacity='0'; }, 2000);
+}
+
+// ─── IMPORT TUTORIAL SETTINGS ───
+function importTutorialSettings(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      const c = data.tutorialConfig;
+      if(!c) throw new Error('Invalid tutorial settings file — missing tutorialConfig key');
+      if(c.phase1Duration      != null) TUTORIAL_CONFIG.phase1Duration      = Math.max(10, +c.phase1Duration);
+      if(c.phase2Duration      != null) TUTORIAL_CONFIG.phase2Duration      = Math.max(10, +c.phase2Duration);
+      if(c.phase2SatInterval   != null) TUTORIAL_CONFIG.phase2SatInterval   = Math.max(3,  +c.phase2SatInterval)  * 1000;
+      if(c.phase2SatLifetime   != null) TUTORIAL_CONFIG.phase2SatLifetime   = Math.max(3,  +c.phase2SatLifetime)  * 1000;
+      if(c.phase2SatSpeed      != null) TUTORIAL_CONFIG.phase2SatSpeed      = Math.max(0.1,+c.phase2SatSpeed);
+      if(c.phase2SatSize       != null) TUTORIAL_CONFIG.phase2SatSize       = Math.max(0.5,+c.phase2SatSize);
+      if(c.phase3Duration      != null) TUTORIAL_CONFIG.phase3Duration      = Math.max(10, +c.phase3Duration);
+      if(c.phase3AlertInterval != null) TUTORIAL_CONFIG.phase3AlertInterval = Math.max(3,  +c.phase3AlertInterval) * 1000;
+      if(c.phase3AlertLifetime != null) TUTORIAL_CONFIG.phase3AlertLifetime = Math.max(3,  +c.phase3AlertLifetime) * 1000;
+      // Refresh all inputs
+      document.getElementById('tut-phase1-duration').value      = TUTORIAL_CONFIG.phase1Duration;
+      document.getElementById('tut-phase2-duration').value      = TUTORIAL_CONFIG.phase2Duration;
+      document.getElementById('tut-phase2-satInterval').value   = TUTORIAL_CONFIG.phase2SatInterval  / 1000;
+      document.getElementById('tut-phase2-satLifetime').value   = TUTORIAL_CONFIG.phase2SatLifetime  / 1000;
+      document.getElementById('tut-phase2-satSpeed').value      = TUTORIAL_CONFIG.phase2SatSpeed;
+      document.getElementById('tut-phase2-satSize').value       = TUTORIAL_CONFIG.phase2SatSize;
+      document.getElementById('tut-phase3-duration').value      = TUTORIAL_CONFIG.phase3Duration;
+      document.getElementById('tut-phase3-alertInterval').value = TUTORIAL_CONFIG.phase3AlertInterval / 1000;
+      document.getElementById('tut-phase3-alertLifetime').value = TUTORIAL_CONFIG.phase3AlertLifetime / 1000;
+      const msg = document.getElementById('tut-settings-saved-msg');
+      msg.textContent = '⬆ Tutorial settings imported successfully';
+      msg.style.opacity = '1';
+      setTimeout(()=>{ msg.style.opacity='0'; }, 2500);
+    } catch(err) {
+      alert('Failed to import tutorial settings: ' + err.message);
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ─── START DIRECTLY (skip tutorial) ───
+function startDirectly(){
+  masterSessionId = 'MC' + Date.now().toString().slice(-6);
+  collectedRows = [];
+  tutorialDone = false;
+  baselineFeatures = null;
+  startGame('LOW');
+}
+
+// ─── TUTORIAL FLOW ───
+function startTutorial(){
+  masterSessionId = 'MC' + Date.now().toString().slice(-6);
+  collectedRows = [];
+  tutorialDone = false;
+  baselineFeatures = null;
+  tutorialPhase = 0;
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('tut-complete-screen').classList.add('hidden');
+  beginTutorialPhase(1);
+}
+
+function beginTutorialPhase(phase){
+  tutorialPhase = phase;
+  showTutPhaseOverlay(phase);  // always show overlay, including phase 1
+}
+
+function showTutPhaseOverlay(phase){
+  const overlay = document.getElementById('tut-phase-overlay');
+  const title   = document.getElementById('tut-overlay-title');
+  const body    = document.getElementById('tut-overlay-body');
+  const cdEl    = document.getElementById('tut-overlay-countdown');
+  const btn     = document.getElementById('tut-overlay-btn');
+
+  const phaseInfo = {
+    1:{ title:'PHASE 1 — MISSION COMMANDS',
+        body:'<strong>Your primary task: type the mission commands.</strong><br><br>A command will appear in the <span style="color:var(--accent)">TRANSMIT COMMAND</span> box on the left.<br>Type it exactly as shown in the input field below it.<br>Complete as many commands as you can before the timer runs out.<br><br><span style="color:var(--text-dim);font-size:.85em;">No satellites or alerts will appear in this phase.</span>' },
+    2:{ title:'PHASE 2 — ORBITAL TRACKING',
+        body:'<strong>Your task: click the satellites on the radar.</strong><br><br>Satellites will appear on the <span style="color:var(--accent2)">ORBITAL TRACKING ARRAY</span> in the centre.<br>Each satellite has a countdown timer — click it before the timer runs out!<br>Move your cursor over the radar and click directly on a satellite to lock it.<br><br><span style="color:var(--text-dim);font-size:.85em;">No typing or alerts in this phase.</span>' },
+    3:{ title:'PHASE 3 — ALERT RESPONSE',
+        body:'<strong>Your task: respond to alert popups.</strong><br><br>Alert popups will appear on the <span style="color:var(--warn)">right side</span> of the screen.<br>For <strong>click alerts</strong>: click the button to dismiss them.<br>For <strong>override alerts</strong>: type the code shown (e.g. DELTA-7) into the input field.<br>Resolve each alert before its timer bar runs out!<br><br><span style="color:var(--text-dim);font-size:.85em;">No typing or satellites in this phase.</span>' },
+  };
+
+  title.textContent = phaseInfo[phase].title;
+  body.innerHTML    = phaseInfo[phase].body;
+  cdEl.textContent  = '';   // no countdown
+  cdEl.style.display = 'none';
+  overlay.classList.add('active');
+
+  // Only "Begin" button — no auto-launch, user reads at own pace
+  btn.textContent = '▶ BEGIN PHASE ' + phase;
+  btn.onclick = ()=>{
+    overlay.classList.remove('active');
+    cdEl.style.display = 'block';  // restore for next time
+    launchTutorialPhase(phase);
+  };
+}
+
+function launchTutorialPhase(phase){
+  const durations = [TUTORIAL_CONFIG.phase1Duration, TUTORIAL_CONFIG.phase2Duration, TUTORIAL_CONFIG.phase3Duration];
+  const dur = durations[phase-1];
+  gameLevel = 'STD';
+  document.getElementById('game-screen').classList.remove('hidden');
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('tut-complete-screen').classList.add('hidden');
+  resetState();
+  sessionTimer = dur;
+  document.getElementById('hud-timer').textContent = dur;
+  document.getElementById('hud-timer').style.color = 'var(--warn)';
+  const lb = document.getElementById('load-badge');
+  lb.textContent = ['PHASE 1','PHASE 2','PHASE 3'][phase-1];
+  lb.style.borderColor = 'var(--accent)'; lb.style.color = 'var(--accent)';
+  document.getElementById('session-id').textContent = masterSessionId;
+  sessionStartTime = Date.now();
+  initRadar(); initWave(); setupMouseTracking();
+
+  if(phase===1){
+    // Typing only
+    loadNewCommand();
+    document.getElementById('type-input').disabled = false;
+    document.getElementById('type-input').placeholder = 'Begin typing command…';
+    document.getElementById('type-input').focus();
+  } else if(phase===2){
+    // Satellites only
+    document.getElementById('type-target').innerHTML='<span style="color:var(--text-dim);font-size:.85rem;">— No commands in this phase —<br>Click the satellites on the radar!</span>';
+    document.getElementById('type-input').disabled = true;
+    document.getElementById('type-input').placeholder = '— Focus on clicking satellites —';
+    scheduleTutorialSatellites();
+  } else if(phase===3){
+    // Alerts only
+    document.getElementById('type-target').innerHTML='<span style="color:var(--text-dim);font-size:.85rem;">— No commands in this phase —<br>Respond to the alert popups!</span>';
+    document.getElementById('type-input').disabled = true;
+    document.getElementById('type-input').placeholder = '— Focus on alert popups —';
+    scheduleTutorialAlerts();
+  }
+
+  sessionActive = true;
+  tutorialPhaseTimer = setInterval(()=>{
+    sessionTimer--;
+    document.getElementById('hud-timer').textContent = sessionTimer;
+    if(sessionTimer<=15) document.getElementById('hud-timer').style.color='var(--red)';
+    updateSysNoise();
+    if(sessionTimer<=0){ clearInterval(tutorialPhaseTimer); endTutorialPhase(phase); }
+  },1000);
+}
+
+function scheduleTutorialSatellites(){
+  setTimeout(()=>{ if(sessionActive) spawnTutorialSatellite(); }, 2000);
+  satIntervalId = setInterval(()=>{ if(sessionActive) spawnTutorialSatellite(); }, TUTORIAL_CONFIG.phase2SatInterval);
+}
+
+function spawnTutorialSatellite(){
+  if(!radarCtx) return null;
+  const W=radarCtx.canvas.width, H=radarCtx.canvas.height;
+  const cx=W/2, cy=H/2, maxR=Math.min(W,H)*0.42;
+  const labels=['SAT-α','SAT-β','SAT-γ','SAT-δ','SAT-ε','SAT-ζ','SAT-η'];
+  const colors=['#00d4ff','#ff6b35','#39ff14','#ffcc00','#bf5fff','#ff2244','#00ffcc'];
+  const idx=Math.floor(Math.random()*labels.length);
+  const orbitR=maxR*(0.3+Math.random()*0.6);
+  const sat={
+    alive:true, label:labels[idx], color:colors[idx],
+    x:cx, y:cy, angle:Math.random()*Math.PI*2, orbitR,
+    rx:orbitR*(0.8+Math.random()*.4), ry:orbitR*(0.5+Math.random()*.5),
+    wobble:0, speed:(0.004+Math.random()*.008)*(Math.random()<0.5?1:-1),
+    eccentric:false, r:(6+Math.random()*4)*TUTORIAL_CONFIG.phase2SatSize,
+    trail:[], spawnCursorX:mouseX, spawnCursorY:mouseY,
+    spawnPathActual:mousePathActual, spawnTime:Date.now(),
+    lifetime:TUTORIAL_CONFIG.phase2SatLifetime,
+  };
+  satellites.push(sat);
+  logEvent('warn',`TARGET ACQUIRED: ${sat.label}`);
+  const t=setTimeout(()=>{
+    if(sat.alive){ sat.alive=false; logEvent('danger',`SAT ESCAPED: ${sat.label}`); }
+  }, TUTORIAL_CONFIG.phase2SatLifetime);
+  alertTimeouts.push(t);
+  return sat;
+}
+
+function scheduleTutorialAlerts(){
+  setTimeout(()=>{ if(sessionActive) triggerTutorialAlert(); }, 2000);
+  alertIntervalId = setInterval(()=>{ if(sessionActive && sessionTimer>3) triggerTutorialAlert(); }, TUTORIAL_CONFIG.phase3AlertInterval);
+}
+
+function triggerTutorialAlert(){
+  // Sync STD config from TUTORIAL_CONFIG before triggering
+  GAME_CONFIG.STD.alertLifetime = TUTORIAL_CONFIG.phase3AlertLifetime;
+  triggerAlert();
+}
+
+function endTutorialPhase(phase){
+  sessionActive = false;
+  stopGame();
+  document.getElementById('type-input').disabled = false;
+  document.getElementById('type-input').placeholder = 'Begin typing command…';
+  document.getElementById('hud-timer').style.color = 'var(--warn)';
+  collectTutorialFeatures(phase);
+  if(phase < 3){ beginTutorialPhase(phase+1); }
+  else { finishTutorial(); }
+}
+
+function collectTutorialFeatures(phase){
+  const dur = TUTORIAL_CONFIG[`phase${phase}Duration`];
+  const S_sec = (typingStartTime && lastKeyTime && lastKeyTime>typingStartTime)
+                ? (lastKeyTime-typingStartTime)/1000 : dur;
+  const wpm = (totalCharsTyped>=2 && S_sec>0) ? Math.round(((totalCharsTyped-1)/S_sec)*60*(1/5)) : 0;
+  const features = {
+    typing_speed_wpm:           +wpm.toFixed(2),
+    error_rate:                 +(totalCharsTyped>0?(cumulativeErrors+peakErrorCount)/totalCharsTyped*100:0).toFixed(2),
+    backspace_rate:             +(totalCharsTyped>0?backspaceCount/totalCharsTyped*100:0).toFixed(2),
+    burst_typing_duration_s:    +computeBurstDuration().toFixed(2),
+    sentence_pause_s:           +(sentencePauses.length>0?avg(sentencePauses)/1000:5).toFixed(2),
+    key_interval_variance_ms:   +computeKeyIntervalVariance().toFixed(2),
+    correction_latency_ms:      +(correctionLatencies.length>0?avg(correctionLatencies):0).toFixed(2),
+    typing_rhythm_entropy:      +computeTypingRhythmEntropy().toFixed(4),
+    cursor_speed_mean_px:       +(mouseSpeeds.length>0?avg(mouseSpeeds):0).toFixed(2),
+    cursor_speed_variance:      +computeCursorSpeedVariance().toFixed(2),
+    cursor_path_efficiency:     +computePathEfficiency().toFixed(4),
+    click_rate_per_s:           +(clickCount/dur).toFixed(4),
+    hover_time_before_click_ms: +(hoverTimes.length>0?avg(hoverTimes):0).toFixed(2),
+    cursor_movement_entropy:    +computeDirectionalEntropy().toFixed(4),
+    alert_resolve_time_ms:      +(alertResolveTimes.length>0?avg(alertResolveTimes):0).toFixed(2),
+    alert_miss_rate:            +(totalAlertsTriggered>0?expiredAlerts/totalAlertsTriggered:0).toFixed(4),
+    override_typing_wpm:        +(overrideTypingSpeeds.length>0?avg(overrideTypingSpeeds):0).toFixed(2),
+  };
+  collectedRows.push({
+    level:`STD_P${phase}`, score, duration:dur,
+    classification:`TUTORIAL PHASE ${phase}`, features,
+  });
+}
+
+function finishTutorial(){
+  tutorialDone = true;
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('tut-phase-overlay').classList.remove('active');
+  document.getElementById('tut-complete-screen').classList.remove('hidden');
+}
+
+function endGameToHome(){
+  if(!confirm('End game now? No statistics will be saved.')) return;
+  if(tutorialPhaseTimer){ clearInterval(tutorialPhaseTimer); tutorialPhaseTimer=null; }
+  // Re-enable type input in case we're in a tutorial phase that disabled it
+  const ti = document.getElementById('type-input');
+  ti.disabled = false;
+  ti.placeholder = 'Begin typing command…';
+  document.getElementById('tut-phase-overlay').classList.remove('active');
+  stopGame();
+  showIntro();
+}
+
+// ─── EXPORT SETTINGS ───
+function exportSettings(){
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    config: {
+      LOW:    { ...GAME_CONFIG.LOW },
+      MEDIUM: { ...GAME_CONFIG.MEDIUM },
+      HIGH:   { ...GAME_CONFIG.HIGH },
+    }
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `neuropilot_settings_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  const msg = document.getElementById('settings-saved-msg');
+  msg.textContent = '⬇ Settings exported successfully';
+  msg.style.opacity = '1';
+  setTimeout(()=>{ msg.style.opacity='0'; }, 2000);
+}
+
+// ─── IMPORT SETTINGS ───
+function importSettings(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.config) throw new Error('Invalid settings file');
+      ['LOW','MEDIUM','HIGH'].forEach(lvl=>{
+        const c = data.config[lvl];
+        if(!c) return;
+        if(c.sessionDuration  != null) GAME_CONFIG[lvl].sessionDuration  = +c.sessionDuration;
+        if(c.satInterval      != null) GAME_CONFIG[lvl].satInterval      = +c.satInterval;
+        if(c.satLifetime      != null) GAME_CONFIG[lvl].satLifetime      = +c.satLifetime;
+        if(c.satSpeed         != null) GAME_CONFIG[lvl].satSpeed         = +c.satSpeed;
+        if(c.satSize          != null) GAME_CONFIG[lvl].satSize          = +c.satSize;
+        if(c.alertInterval    != null) GAME_CONFIG[lvl].alertInterval    = +c.alertInterval;
+        if(c.alertLifetime    != null) GAME_CONFIG[lvl].alertLifetime    = +c.alertLifetime;
+        if(c.popupSize        != null) GAME_CONFIG[lvl].popupSize        = +c.popupSize;
+        if(c.popupFontSize    != null) GAME_CONFIG[lvl].popupFontSize    = +c.popupFontSize;
+        if(c.inputFontSize    != null) GAME_CONFIG[lvl].inputFontSize    = +c.inputFontSize;
+      });
+      // Refresh all inputs to show imported values
+      ['LOW','MEDIUM','HIGH'].forEach(lvl=>{
+        document.getElementById(`cfg-${lvl}-sessionDuration`).value = GAME_CONFIG[lvl].sessionDuration;
+        document.getElementById(`cfg-${lvl}-satInterval`).value     = GAME_CONFIG[lvl].satInterval / 1000;
+        document.getElementById(`cfg-${lvl}-satLifetime`).value     = GAME_CONFIG[lvl].satLifetime / 1000;
+        document.getElementById(`cfg-${lvl}-satSpeed`).value        = GAME_CONFIG[lvl].satSpeed;
+        document.getElementById(`cfg-${lvl}-satSize`).value         = GAME_CONFIG[lvl].satSize;
+        document.getElementById(`cfg-${lvl}-alertInterval`).value   = GAME_CONFIG[lvl].alertInterval / 1000;
+        document.getElementById(`cfg-${lvl}-alertLifetime`).value   = GAME_CONFIG[lvl].alertLifetime / 1000;
+        document.getElementById(`cfg-${lvl}-popupSize`).value       = GAME_CONFIG[lvl].popupSize;
+        document.getElementById(`cfg-${lvl}-popupFontSize`).value   = GAME_CONFIG[lvl].popupFontSize;
+        document.getElementById(`cfg-${lvl}-inputFontSize`).value   = GAME_CONFIG[lvl].inputFontSize;
+      });
+      const msg = document.getElementById('settings-saved-msg');
+      msg.textContent = '⬆ Settings imported successfully';
+      msg.style.opacity = '1';
+      setTimeout(()=>{ msg.style.opacity='0'; }, 2000);
+    } catch(err) {
+      alert('Failed to import settings: ' + err.message);
+    }
+    // Reset file input so the same file can be re-imported if needed
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ─── SETTINGS ───
+const SETTINGS_DEFAULTS = {
+  LOW:    { sessionDuration:60,  satInterval:30, satLifetime:20, satSpeed:0.15, satSize:3.0, alertInterval:25, alertLifetime:20, popupSize:1.4, popupFontSize:1.4, inputFontSize:1.5 },
+  MEDIUM: { sessionDuration:90,  satInterval:25, satLifetime:15, satSpeed:0.25, satSize:2.5, alertInterval:20, alertLifetime:17, popupSize:1.4, popupFontSize:1.0, inputFontSize:1.3 },
+  HIGH:   { sessionDuration:120, satInterval:20, satLifetime:12, satSpeed:0.35, satSize:2.0, alertInterval:16, alertLifetime:14, popupSize:1.2, popupFontSize:1.0, inputFontSize:1.0 },
+};
+
+function showSettings(){
+  // Populate inputs with current GAME_CONFIG values before showing
+  ['LOW','MEDIUM','HIGH'].forEach(lvl=>{
+    document.getElementById(`cfg-${lvl}-sessionDuration`).value = GAME_CONFIG[lvl].sessionDuration;
+    document.getElementById(`cfg-${lvl}-satInterval`).value   = GAME_CONFIG[lvl].satInterval / 1000;
+    document.getElementById(`cfg-${lvl}-satLifetime`).value   = GAME_CONFIG[lvl].satLifetime / 1000;
+    document.getElementById(`cfg-${lvl}-satSpeed`).value      = GAME_CONFIG[lvl].satSpeed;
+    document.getElementById(`cfg-${lvl}-satSize`).value       = GAME_CONFIG[lvl].satSize;
+    document.getElementById(`cfg-${lvl}-alertInterval`).value = GAME_CONFIG[lvl].alertInterval / 1000;
+    document.getElementById(`cfg-${lvl}-alertLifetime`).value = GAME_CONFIG[lvl].alertLifetime / 1000;
+    document.getElementById(`cfg-${lvl}-popupSize`).value     = GAME_CONFIG[lvl].popupSize;
+    document.getElementById(`cfg-${lvl}-popupFontSize`).value = GAME_CONFIG[lvl].popupFontSize;
+    document.getElementById(`cfg-${lvl}-inputFontSize`).value = GAME_CONFIG[lvl].inputFontSize;
+  });
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('settings-screen').classList.remove('hidden');
+  document.getElementById('settings-saved-msg').textContent = '';
+  switchSettingsTab('LOW');
+}
+
+function switchSettingsTab(lvl){
+  ['LOW','MEDIUM','HIGH'].forEach(l=>{
+    document.getElementById('stab-'+l).classList.toggle('active', l===lvl);
+    document.getElementById('spanel-'+l).classList.toggle('active', l===lvl);
+  });
+}
+
+function saveSettings(){
+  ['LOW','MEDIUM','HIGH'].forEach(lvl=>{
+    const sd  = parseFloat(document.getElementById(`cfg-${lvl}-sessionDuration`).value);
+    const si  = parseFloat(document.getElementById(`cfg-${lvl}-satInterval`).value);
+    const sl  = parseFloat(document.getElementById(`cfg-${lvl}-satLifetime`).value);
+    const ss  = parseFloat(document.getElementById(`cfg-${lvl}-satSpeed`).value);
+    const sz  = parseFloat(document.getElementById(`cfg-${lvl}-satSize`).value);
+    const ai  = parseFloat(document.getElementById(`cfg-${lvl}-alertInterval`).value);
+    const al  = parseFloat(document.getElementById(`cfg-${lvl}-alertLifetime`).value);
+    const ps  = parseFloat(document.getElementById(`cfg-${lvl}-popupSize`).value);
+    const pfs = parseFloat(document.getElementById(`cfg-${lvl}-popupFontSize`).value);
+    const ifs = parseFloat(document.getElementById(`cfg-${lvl}-inputFontSize`).value);
+    GAME_CONFIG[lvl].sessionDuration  = Math.max(10, sd);
+    GAME_CONFIG[lvl].satInterval   = Math.max(3, si)  * 1000;
+    GAME_CONFIG[lvl].satLifetime   = Math.max(3, sl)  * 1000;
+    GAME_CONFIG[lvl].satSpeed      = Math.max(0.1, Math.min(3.0, ss));
+    GAME_CONFIG[lvl].satSize       = Math.max(0.5, Math.min(3.0, sz));
+    GAME_CONFIG[lvl].alertInterval = Math.max(3, ai)  * 1000;
+    GAME_CONFIG[lvl].alertLifetime = Math.max(3, al)  * 1000;
+    GAME_CONFIG[lvl].popupSize     = Math.max(0.5, Math.min(2.0, ps));
+    GAME_CONFIG[lvl].popupFontSize = Math.max(0.5, Math.min(2.0, pfs));
+    GAME_CONFIG[lvl].inputFontSize = Math.max(0.5, Math.min(2.0, ifs));
+  });
+  const msg = document.getElementById('settings-saved-msg');
+  msg.textContent = '✓ Settings saved successfully';
+  msg.style.opacity = '1';
+  setTimeout(()=>{
+    msg.style.opacity = '0';
+    setTimeout(()=>showIntro(), 600);
+  }, 900);
+}
+
+function resetSettingsToDefaults(){
+  ['LOW','MEDIUM','HIGH'].forEach(lvl=>{
+    const d = SETTINGS_DEFAULTS[lvl];
+    GAME_CONFIG[lvl].sessionDuration  = d.sessionDuration;
+    GAME_CONFIG[lvl].satInterval   = d.satInterval   * 1000;
+    GAME_CONFIG[lvl].satLifetime   = d.satLifetime   * 1000;
+    GAME_CONFIG[lvl].satSpeed      = d.satSpeed;
+    GAME_CONFIG[lvl].satSize       = d.satSize;
+    GAME_CONFIG[lvl].alertInterval = d.alertInterval * 1000;
+    GAME_CONFIG[lvl].alertLifetime = d.alertLifetime * 1000;
+    GAME_CONFIG[lvl].popupSize     = d.popupSize;
+    GAME_CONFIG[lvl].popupFontSize = d.popupFontSize;
+    GAME_CONFIG[lvl].inputFontSize = d.inputFontSize;
+    document.getElementById(`cfg-${lvl}-sessionDuration`).value = d.sessionDuration;
+    document.getElementById(`cfg-${lvl}-satInterval`).value   = d.satInterval;
+    document.getElementById(`cfg-${lvl}-satLifetime`).value   = d.satLifetime;
+    document.getElementById(`cfg-${lvl}-satSpeed`).value      = d.satSpeed;
+    document.getElementById(`cfg-${lvl}-satSize`).value       = d.satSize;
+    document.getElementById(`cfg-${lvl}-alertInterval`).value = d.alertInterval;
+    document.getElementById(`cfg-${lvl}-alertLifetime`).value = d.alertLifetime;
+    document.getElementById(`cfg-${lvl}-popupSize`).value     = d.popupSize;
+    document.getElementById(`cfg-${lvl}-popupFontSize`).value = d.popupFontSize;
+    document.getElementById(`cfg-${lvl}-inputFontSize`).value = d.inputFontSize;
+  });
+  const msg = document.getElementById('settings-saved-msg');
+  msg.textContent = '↺ All settings reset to defaults';
+  msg.style.opacity = '1';
+  setTimeout(()=>{ msg.style.opacity='0'; }, 2000);
+}
+
+function startGame(level){
+  gameLevel = level;
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.add('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+  document.getElementById('tut-complete-screen').classList.add('hidden');
+  resetState();
+  sessionStartTime = Date.now();
+  initRadar();
+  initWave();
+  setupMouseTracking();
+  loadNewCommand();
+  startTimer();
+  scheduleAlerts();
+  scheduleSatellites();
+  if(DECEPTION_INTERVALS[level]) scheduleDeception();
+  document.getElementById('type-input').focus();
+
+  // Use masterSessionId if tutorial was done, otherwise generate standalone
+  if(!masterSessionId) masterSessionId = 'MC' + Date.now().toString().slice(-6);
+  document.getElementById('session-id').textContent = masterSessionId;
+  const lb = document.getElementById('load-badge');
+  lb.textContent = level;
+  lb.style.borderColor = level==='LOW'?'var(--green)':level==='MEDIUM'?'var(--warn)':'var(--red)';
+  lb.style.color = level==='LOW'?'var(--green)':level==='MEDIUM'?'var(--warn)':'var(--red)';
+
+  // Apply input font size from config
+  const ifs = GAME_CONFIG[level].inputFontSize;
+  document.getElementById('type-target').style.fontSize = ifs + 'rem';
+  document.getElementById('type-input').style.fontSize  = ifs + 'rem';
+}
+
+function resetState(){
+  score=0; commandsCompleted=0;
+  streakCount=0; bestStreak=0; perfectCommands=0;
+  currentRankIdx=0;
+  keyTimestamps=[]; errorCount=0; cumulativeErrors=0; peakErrorCount=0; totalCharsTyped=0; backspaceCount=0;
+  correctionLatencies=[]; burstDurations=[]; sentencePauses=[];
+  lastCommandEndTime=null; totalWordsTyped=0; commandStartTime=null;
+  typingStartTime=null; lastKeyTime=null;
+  commandDisplayTime=null; firstKeypressRecorded=false;
+  mouseSpeeds=[]; mousePathActual=0; mousePathDirect=0; mousePathActual_forPath=0;
+  clickCount=0; hoverTimes=[]; mouseAngleHistory=[];
+  intervalHistory=[];
+  alertResolveTimes=[]; activeAlerts=0;
+  totalAlertsTriggered=0; expiredAlerts=0;
+  overrideTypingSpeeds=[]; overrideStartTime=null; overrideLastKeyTime=null; overrideCharsTyped=0;
+  burstStart=null; correctionStartTime=null;
+  lastBurstKeyTime=null;
+  lastMousePosForPath=null;
+  sessionTimer = SESSION_DURATIONS[gameLevel] || 20;
+  document.getElementById('hud-timer').textContent = sessionTimer;
+  document.getElementById('hud-score').textContent = '0';
+  document.getElementById('hud-wpm').textContent = '0';
+  document.getElementById('hud-err').textContent = '0%';
+  document.getElementById('hud-cmd').textContent = '0';
+  document.getElementById('hud-streak').textContent = '0';
+  document.getElementById('hud-streak').style.color = 'var(--green)';
+  document.getElementById('hud-rank').textContent = 'CADET';
+  document.getElementById('hud-rank').style.color = 'var(--text-dim)';
+  document.getElementById('cmd-panel').classList.remove('streak-active','streak-hot','streak-fire');
+  document.getElementById('event-log').innerHTML='';
+  document.getElementById('override-box').classList.remove('active');
+  document.getElementById('alert-overlay').innerHTML='';
+  clearAllTimeouts();
+  sysValues = { thermal:72, power:88, shield:95, comms:100, fuel:67 };
+  updateSysBars();
+}
+
+function stopGame(){
+  clearInterval(sessionTick); sessionTick=null;
+  if(tutorialPhaseTimer){ clearInterval(tutorialPhaseTimer); tutorialPhaseTimer=null; }
+  if(radarAnimId){ cancelAnimationFrame(radarAnimId); radarAnimId=null; }
+  if(waveAnimId){ cancelAnimationFrame(waveAnimId); waveAnimId=null; }
+  clearAllTimeouts();
+  // Clear all popup alerts from the DOM
+  document.getElementById('alert-overlay').innerHTML='';
+  // Clear deception overlay
+  document.getElementById('deception-overlay').classList.remove('active');
+  activeAlerts=0;
+  sessionActive=false;
+}
+
+function clearAllTimeouts(){
+  alertTimeouts.forEach(clearTimeout); alertTimeouts=[];
+  if(alertIntervalId){ clearInterval(alertIntervalId); alertIntervalId=null; }
+  if(satIntervalId){ clearInterval(satIntervalId); satIntervalId=null; }
+  if(deceptionTimeout){ clearTimeout(deceptionTimeout); deceptionTimeout=null; }
+}
+
+// ─── TIMER ───
+function startTimer(){
+  sessionActive=true;
+  sessionTick = setInterval(()=>{
+    sessionTimer--;
+    document.getElementById('hud-timer').textContent=sessionTimer;
+    if(sessionTimer<=0){ clearInterval(sessionTick); endGame(); }
+    if(sessionTimer<=15) document.getElementById('hud-timer').style.color='var(--red)';
+    updateSysNoise();
+  },1000);
+}
+
+// ─── COMMANDS ───
+function loadNewCommand(){
+  if(!sessionActive && sessionTimer<=0) return;
+  const pool = COMMANDS[gameLevel] || COMMANDS['LOW'];
+  currentCommand = pool[Math.floor(Math.random()*pool.length)];
+  renderTarget(currentCommand, '');
+  document.getElementById('type-input').value='';
+  document.getElementById('type-input').classList.remove('error');
+  document.getElementById('cmd-progress').style.width='0%';
+  commandStartTime=Date.now();
+  commandDisplayTime=Date.now();   // record when new command appears
+  firstKeypressRecorded=false;     // reset: waiting for first keypress on this command
+  // NOTE: typingStartTime is intentionally NOT reset here.
+  // It records the very first keypress of the session and must persist
+  // across all commands so WPM is computed over the full session span.
+  errorCount=0;
+  peakErrorCount=0;
+}
+
+function renderTarget(target, typed){
+  const el = document.getElementById('type-target');
+  let html='';
+  for(let i=0;i<target.length;i++){
+    if(i<typed.length){
+      if(typed[i]===target[i]) html+=`<span class="correct">${esc(target[i])}</span>`;
+      else html+=`<span class="wrong">${esc(target[i])}</span>`;
+    } else if(i===typed.length){
+      html+=`<span class="cursor-pos">${esc(target[i])}</span>`;
+    } else {
+      html+=`<span style="opacity:.4">${esc(target[i])}</span>`;
+    }
+  }
+  el.innerHTML=html;
+}
+function esc(c){ return c==='<'?'&lt;':c==='>'?'&gt;':c==='&'?'&amp;':c; }
+
+// ─── TYPING INPUT ───
+document.getElementById('type-input').addEventListener('keydown', e=>{
+  if(!sessionActive) return;
+  const now=Date.now();
+  if(keyTimestamps.length>0){
+    const interval=now-keyTimestamps[keyTimestamps.length-1];
+    if(interval<2000) intervalHistory.push(interval);
+  }
+  keyTimestamps.push(now);
+
+  if(!typingStartTime) typingStartTime=now;
+  lastKeyTime=now;   // always track the most recent keypress
+
+  // Sentence pause: time from command display to first keypress on that command
+  // This captures reading/comprehension + planning time (Just & Carpenter 1992)
+  if(!firstKeypressRecorded && commandDisplayTime){
+    sentencePauses.push(now - commandDisplayTime);
+    firstKeypressRecorded=true;
+  }
+
+  // Micro-burst tracking: detect continuous typing segments separated by >500ms pauses
+  // A pause >500ms ends the current burst and records its duration (Alves 2012)
+  if(lastBurstKeyTime && (now - lastBurstKeyTime) > 500){
+    // Gap detected — close previous burst
+    if(burstStart){
+      burstDurations.push(lastBurstKeyTime - burstStart);
+      burstStart=null;
+    }
+  }
+  if(!burstStart) burstStart=now;
+  lastBurstKeyTime=now;
+
+  if(e.key==='Backspace'){
+    backspaceCount++;
+    if(correctionStartTime===null) correctionStartTime=now;
+  } else {
+    if(correctionStartTime!==null){
+      correctionLatencies.push(now-correctionStartTime);
+      correctionStartTime=null;
+    }
+    totalCharsTyped++;
+  }
+});
+
+document.getElementById('type-input').addEventListener('input', e=>{
+  if(!sessionActive) return;
+  const typed = e.target.value;
+  const target = currentCommand;
+  renderTarget(target, typed);
+  const pct = Math.min(100, typed.length/target.length*100);
+  document.getElementById('cmd-progress').style.width=pct+'%';
+
+  // count current mismatches
+  let errs=0;
+  for(let i=0;i<typed.length;i++){
+    if(i<target.length && typed[i]!==target[i]) errs++;
+  }
+  errorCount = errs;
+  // Track the peak (highest) error count seen during this command.
+  // We can't use errorCount at completion time because typed===target means
+  // all characters match at that moment — errors would always read as 0.
+  if(errs > peakErrorCount) peakErrorCount = errs;
+
+  // check completion
+  if(typed===target){
+    commandDone(typed);
+  }
+
+  updateHudMetrics();
+});
+
+function commandDone(typed){
+  commandsCompleted++;
+  const words = typed.trim().split(/\s+/).length;
+  totalWordsTyped += words;
+  const hadErrors = peakErrorCount > 0;
+  cumulativeErrors += peakErrorCount;  // use peak, not current (which is 0 at completion)
+  errorCount = 0;
+  peakErrorCount = 0;
+  lastCommandEndTime=Date.now();
+  // Close current micro-burst if one is active
+  if(burstStart && lastBurstKeyTime){
+    burstDurations.push(lastBurstKeyTime - burstStart);
+    burstStart=null; lastBurstKeyTime=null;
+  }
+
+  // ─── SCORING WITH MOTIVATION BONUSES ───
+  const levelMult = gameLevel==='HIGH'?3:gameLevel==='MEDIUM'?2:1;
+  let basePoints = words * 10 * levelMult;
+  let bonusPoints = 0;
+  let bonusLabels = [];
+
+  // 1) SPEED BONUS — fast completions earn extra
+  //    Time from first keypress of this command to completion
+  const cmdTime = commandStartTime ? (Date.now() - commandStartTime) / 1000 : 999;
+  const charsPerSec = typed.length / Math.max(cmdTime, 0.5);
+  if(charsPerSec > 5){       // >5 chars/sec = very fast
+    const speedBonus = Math.round(20 * levelMult);
+    bonusPoints += speedBonus;
+    bonusLabels.push('⚡SPEED +' + speedBonus);
+  } else if(charsPerSec > 3){ // >3 chars/sec = good pace
+    const speedBonus = Math.round(10 * levelMult);
+    bonusPoints += speedBonus;
+    bonusLabels.push('⚡SPD +' + speedBonus);
+  }
+
+  // 2) ACCURACY BONUS — zero errors on this command
+  if(!hadErrors){
+    perfectCommands++;
+    const accBonus = Math.round(15 * levelMult);
+    bonusPoints += accBonus;
+    bonusLabels.push('✦PERFECT +' + accBonus);
+    streakCount++;
+    if(streakCount > bestStreak) bestStreak = streakCount;
+  } else {
+    streakCount = 0;
+  }
+
+  // 3) STREAK MULTIPLIER — consecutive perfect commands multiply bonus
+  if(streakCount >= 3){
+    const streakMult = Math.min(streakCount, 10); // cap at 10x
+    const streakBonus = Math.round(streakMult * 5 * levelMult);
+    bonusPoints += streakBonus;
+    bonusLabels.push('🔥×' + streakMult + ' +' + streakBonus);
+  }
+
+  // 4) LENGTH BONUS — longer commands (MEDIUM/HIGH) get rewarded more
+  if(typed.length > 60){
+    const lenBonus = Math.round(10 * levelMult);
+    bonusPoints += lenBonus;
+    bonusLabels.push('◈LONG +' + lenBonus);
+  }
+
+  const totalPoints = basePoints + bonusPoints;
+  score += totalPoints;
+  document.getElementById('hud-score').textContent=score;
+  document.getElementById('hud-cmd').textContent=commandsCompleted;
+
+  // Update streak display
+  document.getElementById('hud-streak').textContent=streakCount;
+  const streakEl = document.getElementById('hud-streak');
+  if(streakCount>=7) streakEl.style.color='var(--red)';
+  else if(streakCount>=5) streakEl.style.color='var(--warn)';
+  else if(streakCount>=3) streakEl.style.color='var(--purple)';
+  else streakEl.style.color='var(--green)';
+
+  // Streak glow on typing panel
+  const cmdPanel = document.getElementById('cmd-panel');
+  cmdPanel.classList.remove('streak-active','streak-hot','streak-fire');
+  if(streakCount>=7) cmdPanel.classList.add('streak-fire');
+  else if(streakCount>=5) cmdPanel.classList.add('streak-hot');
+  else if(streakCount>=3) cmdPanel.classList.add('streak-active');
+
+  // Update rank
+  updateRank();
+
+  // ─── VISUAL FEEDBACK ───
+  logEvent('ok', `CMD OK: "${typed.slice(0,28)}…" [+${totalPoints}]`);
+
+  // Show combo with appropriate styling
+  if(!hadErrors && streakCount >= 5){
+    showCombo('🔥 STREAK ×' + streakCount + '  +' + totalPoints + 'pts', 'streak');
+  } else if(!hadErrors){
+    showCombo('✦ PERFECT  +' + totalPoints + 'pts', 'perfect');
+  } else {
+    showCombo('+' + totalPoints + 'pts');
+  }
+
+  // Score pop-ups for bonuses near the score display
+  if(bonusLabels.length > 0){
+    showScorePop(bonusLabels.join('  '));
+  }
+
+  // 5) MILESTONE CALLOUTS — every 5 commands
+  if(commandsCompleted % 5 === 0){
+    const milestoneMessages = [
+      '◈ ' + commandsCompleted + ' COMMANDS — IMPRESSIVE!',
+      '◈ ' + commandsCompleted + ' COMMANDS — KEEP PUSHING!',
+      '◈ ' + commandsCompleted + ' COMMANDS — UNSTOPPABLE!',
+      '◈ ' + commandsCompleted + ' COMMANDS — ELITE OPERATOR!',
+    ];
+    const msgIdx = Math.min(Math.floor(commandsCompleted/5)-1, milestoneMessages.length-1);
+    showMilestone(milestoneMessages[msgIdx]);
+  }
+
+  setTimeout(loadNewCommand, 300);
+}
+
+// ─── RANK SYSTEM ───
+const RANKS = [
+  { min:0,    name:'CADET',        color:'var(--text-dim)' },
+  { min:200,  name:'ENSIGN',       color:'var(--accent)' },
+  { min:500,  name:'LIEUTENANT',   color:'var(--green)' },
+  { min:1000, name:'COMMANDER',    color:'var(--warn)' },
+  { min:2000, name:'CAPTAIN',      color:'var(--accent2)' },
+  { min:3500, name:'ADMIRAL',      color:'var(--purple)' },
+  { min:5000, name:'FLEET MASTER', color:'var(--red)' },
+];
+let currentRankIdx = 0;
+
+function updateRank(){
+  let newIdx=0;
+  for(let i=RANKS.length-1;i>=0;i--){
+    if(score>=RANKS[i].min){ newIdx=i; break; }
+  }
+  const rankEl = document.getElementById('hud-rank');
+  rankEl.textContent = RANKS[newIdx].name;
+  rankEl.style.color = RANKS[newIdx].color;
+  // Rank-up celebration
+  if(newIdx > currentRankIdx){
+    currentRankIdx = newIdx;
+    showCombo('⬆ RANK UP: ' + RANKS[newIdx].name, 'rankup');
+    logEvent('ok', '⬆ RANK UP — ' + RANKS[newIdx].name);
+  }
+}
+
+function showScorePop(text){
+  const el = document.createElement('div');
+  el.className='score-pop';
+  el.textContent=text;
+  el.style.color='var(--warn)';
+  // Position near the score in the HUD
+  const scoreEl = document.getElementById('hud-score');
+  const rect = scoreEl.getBoundingClientRect();
+  el.style.left = rect.left + 'px';
+  el.style.top = (rect.bottom + 4) + 'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 1300);
+}
+
+function showMilestone(msg){
+  const el = document.getElementById('milestone-toast');
+  el.textContent = msg;
+  el.classList.add('active');
+  setTimeout(()=>el.classList.remove('active'), 2500);
+}
+
+// ─── OVERRIDE INPUT ───
+document.getElementById('override-input').addEventListener('input', e=>{
+  if(e.target.value.toUpperCase()===pendingOverrideCode){
+    dismissOverride();
+    logEvent('ok','Override accepted');
+  }
+});
+
+function showOverride(code){
+  pendingOverrideCode=code;
+  document.getElementById('override-box').classList.add('active');
+  document.getElementById('override-input').value='';
+  document.getElementById('override-input').focus();
+}
+function dismissOverride(){
+  document.getElementById('override-box').classList.remove('active');
+  pendingOverrideCode='';
+  document.getElementById('type-input').focus();
+}
+
+// ─── MOUSE TRACKING ───
+function setupMouseTracking(){
+  const radar = document.getElementById('radar-canvas');
+  document.addEventListener('mousemove', onMouseMove);
+  radar.addEventListener('click', onRadarClick);
+  // Hover dwell is now tracked per-satellite via proximity detection in drawRadar()
+}
+
+function onMouseMove(e){
+  lastMouseX=mouseX; lastMouseY=mouseY;
+  mouseX=e.clientX; mouseY=e.clientY;
+  customCursor={x:mouseX, y:mouseY};
+  const dx=mouseX-lastMouseX, dy=mouseY-lastMouseY;
+  const spd=Math.sqrt(dx*dx+dy*dy);
+  if(spd>0) mouseSpeeds.push(spd);
+  mousePathActual+=spd;
+
+  // direction entropy
+  if(dx!==0||dy!==0){
+    const angle=Math.atan2(dy,dx);
+    mouseAngleHistory.push(angle);
+  }
+
+  updateMouseMetrics();
+}
+
+function refocusInput(){
+  // Small timeout lets the click complete before stealing focus back
+  setTimeout(()=>{ document.getElementById('type-input').focus(); }, 0);
+}
+
+function onRadarClick(e){
+  if(!sessionActive) return;
+  clickCount++;
+  const rect=e.target.getBoundingClientRect();
+  const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+
+  // check satellite hit
+  let hit=false;
+  satellites.forEach(sat=>{
+    if(!sat.alive) return;
+    const d=Math.hypot(cx-sat.x,cy-sat.y);
+    if(d<sat.r+8){
+      sat.alive=false; hit=true;
+      const satBase = 50*(gameLevel==='HIGH'?3:gameLevel==='MEDIUM'?2:1);
+      // Fast-lock bonus: clicking within 3 seconds of spawn earns extra
+      let satBonus = 0;
+      if(sat.spawnTime && (Date.now()-sat.spawnTime) < 3000){
+        satBonus = Math.round(25*(gameLevel==='HIGH'?3:gameLevel==='MEDIUM'?2:1));
+      }
+      score += satBase + satBonus;
+      document.getElementById('hud-score').textContent=score;
+      updateRank();
+      const bonusText = satBonus > 0 ? ` [⚡FAST +${satBonus}]` : '';
+      logEvent('ok',`SAT LOCKED: ${sat.label} [+${satBase+satBonus}]${bonusText}`);
+      if(satBonus > 0) showCombo('⚡ FAST LOCK +' + (satBase+satBonus), 'perfect');
+
+      // Record proximity dwell time (how long cursor was near this satellite before clicking)
+      if(sat.proximityEnterTime){
+        hoverTimes.push(Date.now() - sat.proximityEnterTime);
+      }
+
+      // Compute path efficiency for this click:
+      // direct = straight-line from cursor position at spawn → click position
+      // actual = how far cursor actually travelled since spawn
+      if(sat.spawnCursorX !== undefined){
+        const directDist = Math.hypot(cx - (sat.spawnCursorX - radarCtx.canvas.getBoundingClientRect().left),
+                                      cy - (sat.spawnCursorY - radarCtx.canvas.getBoundingClientRect().top));
+        const actualSeg  = mousePathActual - sat.spawnPathActual;
+        mousePathDirect += directDist;
+        // Only add the actual segment if it's >= direct (can't be shorter than straight line)
+        mousePathActual_forPath = (mousePathActual_forPath||0) + Math.max(actualSeg, directDist);
+      }
+    }
+  });
+  if(!hit) logEvent('warn','Missed target');
+  refocusInput();
+}
+
+// ─── RADAR ───
+function initRadar(){
+  // Defer until after the browser has laid out the newly-visible game screen
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const canvas=document.getElementById('radar-canvas');
+      resizeCanvas(canvas);
+      radarCtx=canvas.getContext('2d');
+      satellites=[];
+      drawRadar();
+    });
+  });
+}
+
+function resizeCanvas(c){
+  const parent=c.parentElement;
+  const rect=parent.getBoundingClientRect();
+  const w=rect.width||parent.offsetWidth||600;
+  const h=rect.height||parent.offsetHeight||400;
+  c.width=w;
+  c.height=Math.max(h-32,100);
+}
+
+let radarAngle=0;
+function drawRadar(){
+  if(!radarCtx||!sessionActive){ radarAnimId=null; return; }
+  const c=radarCtx, W=c.canvas.width, H=c.canvas.height;
+  c.clearRect(0,0,W,H);
+
+  // BG
+  c.fillStyle='#040a14'; c.fillRect(0,0,W,H);
+
+  // Grid
+  c.strokeStyle='rgba(0,212,255,.07)'; c.lineWidth=1;
+  const gridSize=40;
+  for(let x=0;x<W;x+=gridSize){ c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke(); }
+  for(let y=0;y<H;y+=gridSize){ c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke(); }
+
+  // Radar rings
+  const cx=W/2, cy=H/2, maxR=Math.min(W,H)*0.42;
+  c.strokeStyle='rgba(0,212,255,.12)'; c.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{
+    c.beginPath(); c.arc(cx,cy,maxR*f,0,Math.PI*2); c.stroke();
+  });
+
+  // Radar sweep
+  radarAngle=(radarAngle+.015*(gameLevel==='HIGH'?2.5:gameLevel==='MEDIUM'?1.5:1))%(Math.PI*2);
+  const grad=c.createConicalGradient?null:null;
+  c.save();
+  c.translate(cx,cy);
+  const sweepGrad=c.createLinearGradient(0,-maxR,0,maxR);
+  sweepGrad.addColorStop(0,'rgba(0,212,255,0)');
+  sweepGrad.addColorStop(.5,'rgba(0,212,255,.08)');
+  sweepGrad.addColorStop(1,'rgba(0,212,255,.18)');
+  c.beginPath();
+  c.moveTo(0,0);
+  c.arc(0,0,maxR,radarAngle-1.0,radarAngle);
+  c.fillStyle=sweepGrad; c.fill();
+  c.restore();
+
+  // Sweep line
+  c.strokeStyle='rgba(0,212,255,.6)'; c.lineWidth=1.5;
+  c.beginPath();
+  c.moveTo(cx,cy);
+  c.lineTo(cx+Math.cos(radarAngle)*maxR, cy+Math.sin(radarAngle)*maxR);
+  c.stroke();
+
+  // Center dot
+  c.beginPath(); c.arc(cx,cy,4,0,Math.PI*2);
+  c.fillStyle='var(--accent)'; c.fill();
+
+  // Satellites
+  const speed = (gameLevel==='STD') ? TUTORIAL_CONFIG.phase2SatSpeed : GAME_CONFIG[gameLevel].satSpeed;
+  satellites.forEach(sat=>{
+    if(!sat.alive) return;
+    sat.angle+=sat.speed*speed;
+    if(sat.eccentric){
+      // erratic path
+      sat.x = cx + Math.cos(sat.angle)*sat.rx + Math.sin(sat.angle*2.3)*sat.wobble;
+      sat.y = cy + Math.sin(sat.angle)*sat.ry + Math.cos(sat.angle*1.7)*sat.wobble;
+    } else {
+      sat.x = cx + Math.cos(sat.angle)*sat.orbitR;
+      sat.y = cy + Math.sin(sat.angle)*sat.orbitR;
+    }
+
+    // Proximity dwell tracking — measure how long cursor hovers near this satellite
+    // before clicking. Uses a threshold of satellite radius + 60px.
+    // This replaces the old canvas-level mouseenter/mouseleave approach,
+    // which measured time spent anywhere on the radar (producing ~5–9s values)
+    // instead of actual decision hesitation near a target (Salvucci 2009).
+    const radarRect = radarCtx.canvas.getBoundingClientRect();
+    const cursorOnRadarX = customCursor.x - radarRect.left;
+    const cursorOnRadarY = customCursor.y - radarRect.top;
+    const distToCursor = Math.hypot(cursorOnRadarX - sat.x, cursorOnRadarY - sat.y);
+    const proximityThreshold = sat.r + 60;
+    if(distToCursor < proximityThreshold){
+      if(!sat.proximityEnterTime) sat.proximityEnterTime = Date.now();
+    } else {
+      sat.proximityEnterTime = null;  // cursor left proximity zone — reset
+    }
+
+    // Glow
+    const glow=c.createRadialGradient(sat.x,sat.y,0,sat.x,sat.y,sat.r+12);
+    glow.addColorStop(0,sat.color+'99');
+    glow.addColorStop(1,'transparent');
+    c.fillStyle=glow; c.beginPath(); c.arc(sat.x,sat.y,sat.r+12,0,Math.PI*2); c.fill();
+
+    // Sat body
+    c.beginPath(); c.arc(sat.x,sat.y,sat.r,0,Math.PI*2);
+    c.fillStyle=sat.color; c.fill();
+    c.strokeStyle='#fff'; c.lineWidth=.8; c.stroke();
+
+    // ── COUNTDOWN TIMER ARC ──
+    if(sat.spawnTime && sat.lifetime){
+      const elapsed=Date.now()-sat.spawnTime;
+      const frac=Math.max(0, 1 - elapsed/sat.lifetime);
+      const secsLeft=Math.ceil((sat.lifetime - elapsed)/1000);
+      const arcR=sat.r+18;
+      const startAngle=-Math.PI/2; // top
+      const endAngle=startAngle + (2*Math.PI*frac);
+
+      // Background track (dim full circle)
+      c.beginPath(); c.arc(sat.x,sat.y,arcR,0,Math.PI*2);
+      c.strokeStyle='rgba(255,255,255,0.12)'; c.lineWidth=3; c.stroke();
+
+      // Countdown arc — green → yellow → red
+      let arcColor;
+      if(frac>0.6) arcColor='#39ff14';
+      else if(frac>0.3) arcColor='#ffcc00';
+      else arcColor='#ff2244';
+
+      // Urgent flash when under 30%
+      const alpha = frac<0.3 ? (0.6+0.4*Math.sin(Date.now()/120)) : 1;
+      c.globalAlpha=alpha;
+      c.beginPath(); c.arc(sat.x,sat.y,arcR,startAngle,endAngle);
+      c.strokeStyle=arcColor; c.lineWidth=3;
+      c.lineCap='round'; c.stroke();
+      c.globalAlpha=1; c.lineCap='butt';
+
+      // Seconds label below satellite
+      c.fillStyle=arcColor;
+      c.font=`bold 10px Share Tech Mono`;
+      c.textAlign='center';
+      c.fillText(secsLeft+'s', sat.x, sat.y+arcR+11);
+      c.textAlign='left';
+    }
+
+    // Pulsing outer ring
+    const pulse=0.5+0.5*Math.sin(Date.now()/300);
+    c.beginPath(); c.arc(sat.x,sat.y,sat.r+28+pulse*3,0,Math.PI*2);
+    c.strokeStyle=sat.color+'22'; c.lineWidth=1; c.stroke();
+
+    // Label
+    c.fillStyle=sat.color; c.font='bold 9px Share Tech Mono';
+    c.fillText(sat.label, sat.x+sat.r+3, sat.y-sat.r-3);
+
+    // Trail
+    sat.trail.push({x:sat.x,y:sat.y});
+    if(sat.trail.length>20) sat.trail.shift();
+    sat.trail.forEach((p,i)=>{
+      c.beginPath(); c.arc(p.x,p.y,1.5*(i/20),0,Math.PI*2);
+      c.fillStyle=sat.color+(Math.floor(i/20*ff(i)).toString(16).padStart(2,'0'));
+      c.fill();
+    });
+  });
+
+  // Custom crosshair cursor
+  const {x,y}=customCursor;
+  const rect=radarCtx.canvas.getBoundingClientRect();
+  const lx=x-rect.left, ly=y-rect.top;
+  if(lx>0&&lx<W&&ly>0&&ly<H){
+    c.strokeStyle='rgba(255,107,53,.8)'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(lx-12,ly); c.lineTo(lx+12,ly); c.stroke();
+    c.beginPath(); c.moveTo(lx,ly-12); c.lineTo(lx,ly+12); c.stroke();
+    c.beginPath(); c.arc(lx,ly,8,0,Math.PI*2);
+    c.strokeStyle='rgba(255,107,53,.4)'; c.stroke();
+  }
+
+  radarAnimId=requestAnimationFrame(drawRadar);
+}
+function ff(i){ return Math.min(255,Math.floor(i/20*200)); }
+
+function spawnSatellite(){
+  if(!radarCtx) return null;
+  const W=radarCtx.canvas.width, H=radarCtx.canvas.height;
+  const cx=W/2,cy=H/2,maxR=Math.min(W,H)*0.42;
+  const labels=['SAT-α','SAT-β','SAT-γ','SAT-δ','SAT-ε','SAT-ζ','SAT-η'];
+  const colors=['#00d4ff','#ff6b35','#39ff14','#ffcc00','#bf5fff','#ff2244','#00ffcc'];
+  const idx=Math.floor(Math.random()*labels.length);
+  const orbitR=maxR*(0.3+Math.random()*0.6);
+  const sat={
+    alive:true,
+    label:labels[idx],
+    color:colors[idx],
+    x:cx,y:cy,
+    angle:Math.random()*Math.PI*2,
+    orbitR,
+    rx:orbitR*(0.8+Math.random()*.4),
+    ry:orbitR*(0.5+Math.random()*.5),
+    wobble:gameLevel==='HIGH'?40:gameLevel==='MEDIUM'?15:0,
+    speed:(0.004+Math.random()*.008)*(Math.random()<0.5?1:-1),
+    eccentric:gameLevel==='HIGH',
+    r:(6+Math.random()*4) * GAME_CONFIG[gameLevel].satSize,
+    trail:[],
+    proximityEnterTime:null,
+  };
+  satellites.push(sat);
+  return sat;
+}
+
+// ─── WAVEFORM ───
+function initWave(){
+  const canvas=document.getElementById('wave-canvas');
+  const parent=canvas.parentElement;
+  const rect=parent.getBoundingClientRect();
+  const w=rect.width||parent.offsetWidth||600;
+  const h=rect.height||parent.offsetHeight||160;
+  canvas.width=w; canvas.height=Math.max(h-32,60);
+  waveCtx=canvas.getContext('2d');
+  drawWave();
+}
+
+let waveTick=0;
+function drawWave(){
+  if(!waveCtx||!sessionActive){ waveAnimId=null; return; }
+  const c=waveCtx, W=c.canvas.width, H=c.canvas.height;
+  c.fillStyle='rgba(4,8,16,.15)'; c.fillRect(0,0,W,H);
+
+  waveTick++;
+  const samples=Math.min(intervalHistory.length,W);
+  if(samples>1){
+    c.beginPath();
+    const slice=intervalHistory.slice(-samples);
+    const maxV=Math.max(...slice,1);
+    for(let i=0;i<slice.length;i++){
+      const x=(i/slice.length)*W;
+      const y=H/2 - (slice[i]/maxV)*(H/2-.5)*0.8;
+      i===0?c.moveTo(x,y):c.lineTo(x,y);
+    }
+    const entropy=computeEntropy(slice);
+    const hue=entropy>3?0:entropy>2?40:120;
+    c.strokeStyle=`hsl(${hue},100%,60%)`; c.lineWidth=1.5; c.stroke();
+  }
+
+  // entropy meter
+  const ent=intervalHistory.length>5?computeEntropy(intervalHistory.slice(-40)):0;
+  c.fillStyle='rgba(0,0,0,.5)'; c.fillRect(W-80,4,76,20);
+  c.fillStyle='rgba(0,212,255,.3)'; c.fillRect(W-80,4,76*(ent/4),20);
+  c.fillStyle='#aef'; c.font='9px Share Tech Mono';
+  c.fillText('ENT:'+ent.toFixed(2),W-78,17);
+
+  waveAnimId=requestAnimationFrame(drawWave);
+}
+
+// ─── ALERTS ───
+function scheduleAlerts(){
+  alertIntervalId=setInterval(()=>{
+    if(!sessionActive||sessionTimer<=5) return;
+    triggerAlert();
+  }, ALERT_INTERVALS[gameLevel]);
+}
+
+// ─── SATELLITES (occasional interrupt) ───
+function scheduleSatellites(){
+  // Spawn first one after a short delay so game isn't immediately empty
+  setTimeout(()=>{ if(sessionActive) spawnSatelliteInterrupt(); }, 4000);
+  satIntervalId=setInterval(()=>{
+    if(!sessionActive||sessionTimer<=5) return;
+    spawnSatelliteInterrupt();
+  }, SAT_INTERVALS[gameLevel]);
+}
+
+function spawnSatelliteInterrupt(){
+  const alive=satellites.filter(s=>s.alive).length;
+  if(alive>=SAT_MAX[gameLevel]) return;
+  const sat=spawnSatellite();
+  if(!sat) return;
+  // Store timing info on sat for countdown arc rendering
+  const lifetime=SAT_LIFETIME[gameLevel];
+  sat.spawnTime=Date.now();
+  sat.lifetime=lifetime;
+  // Store cursor position and path snapshot at moment of spawn
+  // so we can compute path efficiency when the satellite is clicked
+  sat.spawnCursorX = mouseX;
+  sat.spawnCursorY = mouseY;
+  sat.spawnPathActual = mousePathActual;
+  logEvent('warn',`TARGET ACQUIRED: ${sat.label}`);
+  // Auto-expire if not clicked
+  const t=setTimeout(()=>{
+    if(sat.alive){
+      sat.alive=false;
+      logEvent('danger',`SAT ESCAPED: ${sat.label}`);
+      score=Math.max(0,score-30);
+      document.getElementById('hud-score').textContent=score;
+    }
+  }, lifetime);
+  alertTimeouts.push(t);
+}
+
+function triggerAlert(){
+  if(activeAlerts>=3) return;
+  activeAlerts++;
+  totalAlertsTriggered++;   // count every alert that fires
+  const template=ALERTS[Math.floor(Math.random()*ALERTS.length)];
+  const alert={...template};
+  if(alert.action==='type') alert.code=OVERRIDE_CODES[Math.floor(Math.random()*OVERRIDE_CODES.length)];
+
+  const id='alert-'+Date.now();
+  const el=document.createElement('div');
+  el.className='popup-alert'+(alert.type==='danger'?' danger-alert':'');
+  el.id=id;
+
+  // Scale popup width from popupSize; scale text from popupFontSize (independent)
+  const ps = GAME_CONFIG[gameLevel].popupSize;
+  const pfs = GAME_CONFIG[gameLevel].popupFontSize;
+  el.style.maxWidth = Math.round(300 * ps) + 'px';
+  el.style.fontSize = (pfs) + 'rem';  // rem = absolute scale, cascades to em children
+
+  const timeoutDur = GAME_CONFIG[gameLevel].alertLifetime;
+  let remaining=timeoutDur;
+  const startT=Date.now();
+
+  let inner=`<div class="popup-title">⚡ ${alert.title}</div>
+    <div class="popup-body">${alert.body}</div>`;
+
+  if(alert.action==='type'){
+    inner+=`<input class="popup-input" id="pi-${id}" placeholder="Type: ${alert.code}" autocomplete="off">`;
+    inner+=`<div class="popup-timer-bar"><div class="popup-timer-fill" id="ptf-${id}" style="width:100%"></div></div>`;
+  } else {
+    inner+=`<button class="popup-btn" onclick="resolveAlert('${id}',${Date.now()})">✓ ${alert.btn}</button>`;
+    inner+=`<div class="popup-timer-bar"><div class="popup-timer-fill" id="ptf-${id}" style="width:100%"></div></div>`;
+  }
+  el.innerHTML=inner;
+
+  if(alert.action==='type'){
+    const showCode=alert.code;
+    const popupInput = el.querySelector(`#pi-${id}`);
+
+    // Track override typing speed via keydown on the popup input
+    popupInput.addEventListener('keydown', ev=>{
+      const now = Date.now();
+      if(!overrideStartTime) overrideStartTime = now;
+      overrideLastKeyTime = now;
+      if(ev.key !== 'Backspace') overrideCharsTyped++;
+    });
+
+    popupInput.addEventListener('input',ev=>{
+      if(ev.target.value.toUpperCase()===showCode){
+        // Compute override WPM for this episode before resolving
+        if(overrideStartTime && overrideLastKeyTime && overrideCharsTyped >= 2){
+          const S = (overrideLastKeyTime - overrideStartTime) / 1000;
+          if(S > 0){
+            const owpm = Math.round(((overrideCharsTyped - 1) / S) * 60 * (1/5));
+            overrideTypingSpeeds.push(owpm);
+          }
+        }
+        // Reset for next override episode
+        overrideStartTime=null; overrideLastKeyTime=null; overrideCharsTyped=0;
+        resolveAlert(id,startT);
+      }
+    });
+  }
+
+  document.getElementById('alert-overlay').appendChild(el);
+  logEvent(alert.type==='danger'?'danger':'warn', alert.title);
+
+  // Update systems
+  if(alert.title.includes('THERMAL')){ sysValues.thermal=Math.min(100,sysValues.thermal+15); updateSysBars(); }
+  if(alert.title.includes('POWER')){ sysValues.power=Math.max(10,sysValues.power-12); updateSysBars(); }
+  if(alert.title.includes('HULL')||alert.title.includes('BREACH')){ sysValues.shield=Math.max(10,sysValues.shield-20); updateSysBars(); }
+
+  // Timer bar
+  const barTick=setInterval(()=>{
+    const elapsed=Date.now()-startT;
+    const pct=Math.max(0,100*(1-elapsed/timeoutDur));
+    const b=document.getElementById('ptf-'+id);
+    if(b) b.style.width=pct+'%';
+    else clearInterval(barTick);
+  },100);
+  alertTimeouts.push(barTick);
+
+  const t=setTimeout(()=>{
+    const e=document.getElementById(id);
+    if(e){ e.remove(); expiredAlerts++; }  // count as missed only if still on screen
+    activeAlerts=Math.max(0,activeAlerts-1);
+    // Reset override tracking if this was a type-code popup that expired
+    if(alert.action==='type'){
+      overrideStartTime=null; overrideLastKeyTime=null; overrideCharsTyped=0;
+    }
+    logEvent('danger','Alert EXPIRED: '+alert.title);
+    score=Math.max(0,score-100);
+    document.getElementById('hud-score').textContent=score;
+  }, timeoutDur);
+  alertTimeouts.push(t);
+}
+
+function resolveAlert(id, startT){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const latency=Date.now()-startT;
+  alertResolveTimes.push(latency);
+  el.remove();
+  activeAlerts=Math.max(0,activeAlerts-1);
+  // Fast alert bonus: resolving within 4 seconds earns extra
+  let alertPoints = 80;
+  let alertBonus = 0;
+  if(latency < 4000){
+    alertBonus = Math.round(40*(gameLevel==='HIGH'?3:gameLevel==='MEDIUM'?2:1));
+    alertPoints += alertBonus;
+  }
+  score += alertPoints;
+  document.getElementById('hud-score').textContent=score;
+  updateRank();
+  if(alertBonus > 0){
+    logEvent('ok', `Alert resolved [+${alertPoints}] ⚡FAST`);
+    showCombo('⚡ FAST RESPONSE +' + alertPoints, 'perfect');
+  } else {
+    logEvent('ok', `Alert resolved [+${alertPoints}]`);
+  }
+  // restore systems
+  sysValues.thermal=Math.min(100,sysValues.thermal-8);
+  sysValues.power=Math.min(100,sysValues.power+5);
+  sysValues.shield=Math.min(100,sysValues.shield+8);
+  updateSysBars();
+  refocusInput();
+}
+
+// ─── DECEPTION MODE ───
+function scheduleDeception(){
+  const dur=DECEPTION_INTERVALS[gameLevel];
+  deceptionTimeout=setTimeout(()=>{
+    if(!sessionActive||sessionTimer<10) return;
+    triggerDeception();
+  }, dur+Math.random()*10000);
+}
+
+function triggerDeception(){
+  const d=DECEPTIONS[Math.floor(Math.random()*DECEPTIONS.length)];
+  document.getElementById('deception-text').textContent=d.text;
+  const choicesEl=document.getElementById('deception-choices');
+  choicesEl.innerHTML='';
+  deceptionStartTime=Date.now();
+  d.choices.forEach((c,i)=>{
+    const btn=document.createElement('button');
+    btn.className='deception-btn';
+    btn.textContent=c;
+    btn.onclick=()=>resolveDeception(i,d.correct,d.fake);
+    choicesEl.appendChild(btn);
+  });
+  document.getElementById('deception-overlay').classList.add('active');
+  logEvent('warn','SIGNAL INTERFERENCE — DECEPTION EVENT');
+}
+
+function resolveDeception(chosen, correct, isFake){
+  document.getElementById('deception-overlay').classList.remove('active');
+  const t=Date.now()-deceptionStartTime;
+  alertResolveTimes.push(t);
+  if(isFake){
+    if(chosen===correct){
+      logEvent('ok','Deception neutralized — correct response');
+      score+=150;
+    } else {
+      logEvent('danger','Fell for deception!');
+      score=Math.max(0,score-50);
+    }
+  }
+  document.getElementById('hud-score').textContent=score;
+  if(DECEPTION_INTERVALS[gameLevel]) scheduleDeception();
+  refocusInput();
+}
+
+// ─── SYS BARS ───
+function updateSysBars(){
+  const bars={thermal:'bar-thermal',power:'bar-power',shield:'bar-shield',comms:'bar-comms',fuel:'bar-fuel'};
+  const labels={thermal:'sys-thermal',power:'sys-power',shield:'sys-shield',comms:'sys-comms',fuel:'sys-fuel'};
+  Object.keys(sysValues).forEach(k=>{
+    const v=sysValues[k];
+    const b=document.getElementById(bars[k]);
+    const l=document.getElementById(labels[k]);
+    if(b){ b.style.width=v+'%'; b.style.background=v>70?'var(--green)':v>40?'var(--warn)':'var(--red)'; }
+    if(l) l.textContent=v+'%';
+  });
+}
+
+function updateSysNoise(){
+  // Random small fluctuations
+  Object.keys(sysValues).forEach(k=>{
+    sysValues[k]=Math.max(5,Math.min(100,sysValues[k]+(Math.random()-.5)*3));
+  });
+  updateSysBars();
+}
+
+// ─── METRICS UPDATE ───
+function updateHudMetrics(){
+  const wpm=computeWPM();
+  const errRate=computeErrorRate();
+  document.getElementById('hud-wpm').textContent=wpm;
+  document.getElementById('hud-err').textContent=errRate+'%';
+  document.getElementById('m-wpm').textContent=wpm+' wpm';
+  document.getElementById('m-err').textContent=errRate+'%';
+  document.getElementById('m-bsp').textContent=backspaceCount+' keys';
+  const avgClt=correctionLatencies.length>0?Math.round(avg(correctionLatencies)):0;
+  document.getElementById('m-clt').textContent=avgClt+'ms';
+}
+
+function updateMouseMetrics(){
+  const speedMean=mouseSpeeds.length>0?avg(mouseSpeeds):0;
+  document.getElementById('m-cspd').textContent=speedMean.toFixed(1)+' px/f';
+  const elapsed=(Date.now()-(commandStartTime||Date.now()))/1000;
+  const cr=elapsed>0?(clickCount/elapsed).toFixed(2):0;
+  document.getElementById('m-clk').textContent=cr+'/s';
+  const eff=computePathEfficiency();
+  document.getElementById('m-peff').textContent=(eff*100).toFixed(0)+'%';
+  const cent=computeDirectionalEntropy();
+  document.getElementById('m-cent').textContent=cent.toFixed(2);
+  const hvr=hoverTimes.length>0?Math.round(avg(hoverTimes)):0;
+  document.getElementById('m-hvr').textContent=hvr+'ms';
+}
+
+// ─── COMPUTATION ───
+function computeWPM(){
+  // Research standard formula: WPM = (|T| - 1) / S × 60 × (1/5)
+  // |T| = total characters typed (excluding backspaces)
+  // S   = elapsed seconds from first keypress to last keypress
+  // ÷5  = standard word length (5 chars = 1 word)
+  if(!typingStartTime || !lastKeyTime || totalCharsTyped<2) return 0;
+  const S = (lastKeyTime - typingStartTime) / 1000;   // seconds
+  if(S<=0) return 0;
+  return Math.round(((totalCharsTyped - 1) / S) * 60 * (1/5));
+}
+
+function computeErrorRate(){
+  if(totalCharsTyped===0) return 0;
+  return Math.round(((cumulativeErrors+peakErrorCount)/totalCharsTyped)*100);
+}
+
+function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr){
+  if(arr.length<2) return 0;
+  const m=avg(arr);
+  return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length);
+}
+
+function computeEntropy(arr){
+  if(arr.length<4) return 0;
+  const bins=10, mn=Math.min(...arr), mx=Math.max(...arr);
+  const range=mx-mn||1;
+  const counts=new Array(bins).fill(0);
+  arr.forEach(v=>{ const b=Math.min(bins-1,Math.floor((v-mn)/range*bins)); counts[b]++; });
+  return counts.reduce((h,c)=>{
+    if(c===0) return h;
+    const p=c/arr.length;
+    return h - p*Math.log2(p);
+  },0);
+}
+
+function computeDirectionalEntropy(){
+  if(mouseAngleHistory.length<10) return 0;
+  const recent=mouseAngleHistory.slice(-200);
+  const bins=16, counts=new Array(bins).fill(0);
+  recent.forEach(a=>{ const b=Math.floor((a+Math.PI)/(2*Math.PI)*bins)%bins; counts[b]++; });
+  return counts.reduce((h,c)=>{
+    if(c===0) return h;
+    const p=c/recent.length;
+    return h - p*Math.log2(p);
+  },0);
+}
+
+function computeBurstDuration(){
+  if(burstDurations.length===0) return 0;
+  return avg(burstDurations)/1000; // seconds
+}
+
+function computeTypingRhythmEntropy(){
+  return computeEntropy(intervalHistory.slice(-60));
+}
+
+function computeKeyIntervalVariance(){
+  if(intervalHistory.length<5) return 0;
+  return std(intervalHistory.slice(-60));
+}
+
+function computePathEfficiency(){
+  // Uses only the clicks that hit satellites — direct vs actual path for those segments
+  if(!mousePathActual_forPath || mousePathActual_forPath===0) return 1;
+  return Math.min(1, mousePathDirect / mousePathActual_forPath);
+}
+
+function computeCursorSpeedVariance(){
+  return std(mouseSpeeds);
+}
+
+// ─── LOG ───
+function logEvent(type,msg){
+  const log=document.getElementById('event-log');
+  const e=document.createElement('div');
+  e.className='alert-entry '+type;
+  const t=new Date(); const ts=t.toTimeString().slice(0,8);
+  e.textContent=`[${ts}] ${msg}`;
+  log.insertBefore(e, log.firstChild);
+  while(log.children.length>20) log.removeChild(log.lastChild);
+}
+
+function showCombo(text, styleClass){
+  const el=document.getElementById('combo-display');
+  el.className=''; // reset classes
+  el.textContent=text; el.style.opacity='1';
+  if(styleClass) el.classList.add(styleClass);
+  setTimeout(()=>{ el.style.transition='opacity 1s'; el.style.opacity='0'; },800);
+  setTimeout(()=>{ el.style.transition=''; el.className=''; },1900);
+}
+
+// ─── END GAME ───
+function endGame(){
+  sessionActive=false;
+  stopGame();
+
+  // Research standard WPM: (|T| - 1) / S × 60 × (1/5)
+  const S_sec = (typingStartTime && lastKeyTime && lastKeyTime > typingStartTime)
+                ? (lastKeyTime - typingStartTime) / 1000
+                : SESSION_DURATIONS[gameLevel];
+  const wpm = (totalCharsTyped >= 2 && S_sec > 0)
+              ? Math.round(((totalCharsTyped - 1) / S_sec) * 60 * (1/5))
+              : 0;
+  const errRate=totalCharsTyped>0?(cumulativeErrors+peakErrorCount)/totalCharsTyped:0;
+  const bspRate=totalCharsTyped>0?backspaceCount/totalCharsTyped:0;
+
+  // Close any dangling micro-burst that was still in progress when the session ended
+  if(burstStart && lastBurstKeyTime){
+    burstDurations.push(lastBurstKeyTime - burstStart);
+    burstStart=null; lastBurstKeyTime=null;
+  }
+  const burstDur=computeBurstDuration();
+
+  // sentence_pause is now in ms (command display → first keypress); convert to seconds
+  // Default to 3s (mid-range) if no commands were started, not 5s which biased toward HIGH
+  const sentPause=sentencePauses.length>0?avg(sentencePauses)/1000:3;
+  const keyVarMs=computeKeyIntervalVariance();
+  const corrLat=correctionLatencies.length>0?avg(correctionLatencies):0;
+  const rhythmEnt=computeTypingRhythmEntropy();
+  const curSpeedMean=mouseSpeeds.length>0?avg(mouseSpeeds):0;
+  const curSpeedVar=computeCursorSpeedVariance();
+  const pathEff=computePathEfficiency();
+  const dur=SESSION_DURATIONS[gameLevel];
+  const clickRate=clickCount/dur;
+  const hoverTime=hoverTimes.length>0?avg(hoverTimes):0;
+  const curEntropy=computeDirectionalEntropy();
+
+  // ── Three new alert-based features ──
+  const alertResolveTime = alertResolveTimes.length>0 ? avg(alertResolveTimes) : 0;
+  const alertMissRate    = totalAlertsTriggered>0 ? expiredAlerts/totalAlertsTriggered : 0;
+  const overrideWpm      = overrideTypingSpeeds.length>0 ? avg(overrideTypingSpeeds) : 0;
+
+  finalFeatures = {
+    typing_speed_wpm: +wpm.toFixed(2),
+    error_rate: +(errRate*100).toFixed(2),
+    backspace_rate: +(bspRate*100).toFixed(2),
+    burst_typing_duration_s: +burstDur.toFixed(2),
+    sentence_pause_s: +sentPause.toFixed(2),
+    key_interval_variance_ms: +keyVarMs.toFixed(2),
+    correction_latency_ms: +corrLat.toFixed(2),
+    typing_rhythm_entropy: +rhythmEnt.toFixed(4),
+    cursor_speed_mean_px: +curSpeedMean.toFixed(2),
+    cursor_speed_variance: +curSpeedVar.toFixed(2),
+    cursor_path_efficiency: +pathEff.toFixed(4),
+    click_rate_per_s: +clickRate.toFixed(4),
+    hover_time_before_click_ms: +hoverTime.toFixed(2),
+    cursor_movement_entropy: +curEntropy.toFixed(4),
+    alert_resolve_time_ms: +alertResolveTime.toFixed(2),
+    alert_miss_rate: +alertMissRate.toFixed(4),
+    override_typing_wpm: +overrideWpm.toFixed(2),
+  };
+
+  // Classify load
+  const classification=classifyLoad(finalFeatures);
+
+  // Save LOW-level features as baseline for within-subject classification
+  if(gameLevel === 'LOW'){
+    baselineFeatures = {...finalFeatures};
+  }
+
+  // Store this session's row in collectedRows
+  collectedRows.push({
+    level: gameLevel,
+    score,
+    duration: SESSION_DURATIONS[gameLevel],
+    classification: classification.label + ' COGNITIVE LOAD',
+    features: {...finalFeatures},
+    compositeZ: classification.compositeZ || 0,
+    classMethod: classification.method || 'absolute-threshold',
+  });
+
+  // Flow: LOW and MEDIUM show transition screen; HIGH shows full results
+  if(gameLevel === 'LOW'){
+    showTransition('LOW');
+  } else if(gameLevel === 'MEDIUM'){
+    showTransition('MEDIUM');
+  } else {
+    // HIGH — show full results with download
+    showResults(classification, finalFeatures);
+  }
+}
+
+// ─── CLASSIFICATION ───
+/*
+  WITHIN-SUBJECT Z-SCORE CLASSIFIER (v30)
+  ═══════════════════════════════════════
+
+  PROBLEM WITH FIXED THRESHOLDS:
+  The original classifier used absolute thresholds from single-task typing studies
+  (Salthouse 1984, Terzuolo 1980, etc). In a multitasking game, nearly every
+  participant lands in the MEDIUM band because:
+  (a) MEDIUM ranges are 2-3× wider than LOW/HIGH ranges
+  (b) Features like key_interval_variance are permanently HIGH for everyone
+  (c) Correlated features (8 typing metrics) inflate one channel's voting power
+
+  SOLUTION — WITHIN-SUBJECT RELATIVE SCORING:
+  1. The LOW level serves as each participant's personal baseline
+  2. Features are grouped into 5 orthogonal factors via manual factor assignment
+     (mirrors a PCA/factor analysis without runtime matrix math):
+       F1 TYPING QUALITY:  error_rate, backspace_rate, correction_latency_ms
+       F2 TYPING FLUENCY:  typing_speed_wpm, burst_typing_duration_s, sentence_pause_s,
+                           key_interval_variance_ms, typing_rhythm_entropy
+       F3 MOTOR CONTROL:   cursor_speed_mean_px, cursor_speed_variance,
+                           cursor_path_efficiency, cursor_movement_entropy
+       F4 ATTENTION MGMT:  click_rate_per_s, hover_time_before_click_ms,
+                           alert_resolve_time_ms, alert_miss_rate
+       F5 TASK SWITCHING:  override_typing_wpm
+
+  3. Each factor's composite z-score = avg of its feature z-scores
+     z_feature = (value − baseline_mean) / baseline_sd
+     For features where higher = worse: z is positive when degraded
+     For features where higher = better: z is inverted so positive = degraded
+
+  4. Overall load score = weighted average of factor z-scores
+     Weights reflect each factor's diagnostic importance and independence:
+       F1 ×3, F2 ×3, F3 ×2, F4 ×3, F5 ×1
+
+  5. Classification:
+     composite_z < 0.5  → LOW  (within half SD of baseline = no meaningful change)
+     composite_z < 1.5  → MEDIUM  (moderate degradation)
+     composite_z >= 1.5 → HIGH  (severe degradation — >1.5 SD from own baseline)
+
+  FALLBACK: If no baseline exists (LOW level itself, or standalone play),
+  the original absolute-threshold classifier runs as a fallback.
+
+  REFERENCES:
+  - Within-subject designs: Leys et al. (2013), recommended for cognitive load
+  - Factor grouping mirrors Wickens' (2008) Multiple Resource Theory dimensions
+  - Z-score thresholds: Cohen's d conventions (0.5 = medium, 1.5 = very large effect)
+*/
+
+// ─── Store baseline (LOW level) features for within-subject comparison ───
+let baselineFeatures = null;  // set when LOW level completes
+
+// ─── FEATURE DIRECTION: true = higher value means MORE load (degraded) ───
+const FEATURE_DIRECTION = {
+  // Higher = worse (positive direction)
+  error_rate: 1,
+  backspace_rate: 1,
+  correction_latency_ms: 1,
+  sentence_pause_s: 1,
+  key_interval_variance_ms: 1,
+  typing_rhythm_entropy: 1,
+  cursor_speed_mean_px: 1,
+  cursor_speed_variance: 1,
+  cursor_movement_entropy: 1,
+  hover_time_before_click_ms: 1,
+  alert_resolve_time_ms: 1,
+  alert_miss_rate: 1,
+  click_rate_per_s: 1,
+  // Higher = better (inverted: z is negated so positive = degraded)
+  typing_speed_wpm: -1,
+  burst_typing_duration_s: -1,
+  cursor_path_efficiency: -1,
+  override_typing_wpm: -1,
+};
+
+// ─── FACTOR DEFINITIONS ───
+const FACTORS = [
+  { name:'Typing Quality',   weight:3, features:['error_rate','backspace_rate','correction_latency_ms'] },
+  { name:'Typing Fluency',   weight:3, features:['typing_speed_wpm','burst_typing_duration_s','sentence_pause_s','key_interval_variance_ms','typing_rhythm_entropy'] },
+  { name:'Motor Control',    weight:2, features:['cursor_speed_mean_px','cursor_speed_variance','cursor_path_efficiency','cursor_movement_entropy'] },
+  { name:'Attention Mgmt',   weight:3, features:['click_rate_per_s','hover_time_before_click_ms','alert_resolve_time_ms','alert_miss_rate'] },
+  { name:'Task Switching',   weight:1, features:['override_typing_wpm'] },
+];
+
+function classifyLoad(f){
+  // ─── PRIMARY PATH: within-subject z-score (requires LOW baseline) ───
+  if(baselineFeatures && gameLevel !== 'LOW'){
+    return classifyWithinSubject(f);
+  }
+  // ─── FALLBACK: absolute threshold classifier (for LOW level or standalone) ───
+  return classifyAbsolute(f);
+}
+
+function classifyWithinSubject(f){
+  const bl = baselineFeatures;
+  const reasons = [];
+  const factorScores = [];
+
+  // Compute per-feature z-scores relative to baseline
+  // Since we have only 1 baseline sample (LOW), we use the baseline value as the
+  // "expected" value and estimate SD as 25% of the baseline value (minimum floor of 1.0).
+  // 25% CV reflects typical within-subject variability in psychomotor/cognitive measures
+  // across short sessions (Flehmig et al. 2007, Salthouse 1984).
+  const featureZScores = {};
+  for(const key of Object.keys(FEATURE_DIRECTION)){
+    const current = f[key];
+    const baseline = bl[key];
+    if(baseline === undefined || current === undefined) continue;
+    const estimatedSD = Math.max(Math.abs(baseline) * 0.25, 1.0);
+    const rawZ = (current - baseline) / estimatedSD;
+    // Apply direction: positive z always means "more load / worse performance"
+    const directedZ = rawZ * FEATURE_DIRECTION[key];
+    // CLAMP: improvements below baseline (negative z) are clamped to 0.
+    // Rationale: we're measuring cognitive load *increase*, not net performance change.
+    // A participant who gets faster at override typing under HIGH load has NOT reduced
+    // their cognitive load — they've merely adapted. Letting improvements cancel out
+    // degradations would mask genuine load effects (Leys et al. 2013).
+    featureZScores[key] = Math.max(0, directedZ);
+  }
+
+  // Compute factor composite scores
+  let totalWeightedZ = 0;
+  let totalWeight = 0;
+
+  FACTORS.forEach(factor => {
+    const zValues = factor.features
+      .filter(k => featureZScores[k] !== undefined)
+      .map(k => featureZScores[k]);
+    if(zValues.length === 0) return;
+
+    const factorZ = zValues.reduce((a,b)=>a+b,0) / zValues.length;
+    factorScores.push({ name:factor.name, z:factorZ, weight:factor.weight, features:factor.features });
+    totalWeightedZ += factorZ * factor.weight;
+    totalWeight += factor.weight;
+
+    // Build reason for this factor
+    const level = factorZ < 0.5 ? 'low' : factorZ < 1.5 ? 'med' : 'high';
+    const details = factor.features
+      .filter(k => featureZScores[k] !== undefined)
+      .map(k => {
+        const z = featureZScores[k];
+        const arrow = z > 0.5 ? '↑' : z < -0.5 ? '↓' : '→';
+        return k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()).substring(0,18) + ' z=' + z.toFixed(1) + arrow;
+      }).join(', ');
+    reasons.push({
+      f: factor.name,
+      v: 'z=' + factorZ.toFixed(2),
+      level,
+      note: (factorZ < 0.5 ? 'Within baseline' : factorZ < 1.5 ? 'Moderate degradation' : 'Severe degradation') + ' [' + details + ']'
+    });
+  });
+
+  const compositeZ = totalWeight > 0 ? totalWeightedZ / totalWeight : 0;
+
+  // Classification by composite z-score (Cohen's d conventions)
+  let label = 'LOW';
+  if(compositeZ >= 1.5) label = 'HIGH';
+  else if(compositeZ >= 0.5) label = 'MEDIUM';
+
+  // Compute legacy-style scores for display compatibility
+  const highScore = Math.round(Math.max(0, compositeZ - 1.0) * 10);
+  const medScore  = Math.round(Math.max(0, Math.min(compositeZ, 1.5)) * 10);
+  const lowScore  = Math.round(Math.max(0, 1.5 - compositeZ) * 10);
+
+  // Add summary reason
+  reasons.push({
+    f: 'Overall',
+    v: 'z=' + compositeZ.toFixed(2),
+    level: label.toLowerCase(),
+    note: `Composite z-score: ${compositeZ.toFixed(2)} (threshold: <0.5=LOW, 0.5–1.5=MED, ≥1.5=HIGH)`
+  });
+
+  return { label, highScore, medScore, lowScore, reasons, compositeZ: +compositeZ.toFixed(4), factorScores, method:'within-subject' };
+}
+
+// ─── ABSOLUTE THRESHOLD FALLBACK (used for LOW level and standalone play) ───
+function classifyAbsolute(f){
+  let highScore=0, medScore=0, lowScore=0;
+  const reasons=[];
+
+  // --- TYPING SPEED (compound with error rate) ---
+  if(f.typing_speed_wpm < 30){
+    medScore+=1; reasons.push({f:'Typing Speed',v:f.typing_speed_wpm+' WPM',level:'med',note:'<30 WPM → reduced throughput'});
+  } else if(f.typing_speed_wpm > 55 && f.error_rate > 5){
+    highScore+=3; reasons.push({f:'Typing Speed',v:f.typing_speed_wpm+' WPM',level:'high',note:'>55 WPM + >5% errors → rushed'});
+  } else if(f.typing_speed_wpm > 55){
+    lowScore+=2; reasons.push({f:'Typing Speed',v:f.typing_speed_wpm+' WPM',level:'low',note:'>55 WPM + low errors → expert fluency'});
+  } else {
+    medScore+=1; reasons.push({f:'Typing Speed',v:f.typing_speed_wpm+' WPM',level:'med',note:'30–55 WPM → moderate pace'});
+  }
+
+  // --- ERROR RATE ---
+  if(f.error_rate<3){ lowScore+=2; reasons.push({f:'Error Rate',v:f.error_rate+'%',level:'low',note:'<3%'}); }
+  else if(f.error_rate<8){ medScore+=2; reasons.push({f:'Error Rate',v:f.error_rate+'%',level:'med',note:'3–8%'}); }
+  else { highScore+=3; reasons.push({f:'Error Rate',v:f.error_rate+'%',level:'high',note:'>8%'}); }
+
+  // --- BACKSPACE RATE ---
+  if(f.backspace_rate<5){ lowScore+=1; reasons.push({f:'Backspace Rate',v:f.backspace_rate+'%',level:'low',note:'<5%'}); }
+  else if(f.backspace_rate<18){ medScore+=2; reasons.push({f:'Backspace Rate',v:f.backspace_rate+'%',level:'med',note:'5–18%'}); }
+  else { highScore+=2; reasons.push({f:'Backspace Rate',v:f.backspace_rate+'%',level:'high',note:'>18%'}); }
+
+  // --- BURST DURATION ---
+  if(f.burst_typing_duration_s>8){ lowScore+=1; reasons.push({f:'Burst Duration',v:f.burst_typing_duration_s+'s',level:'low',note:'>8s'}); }
+  else if(f.burst_typing_duration_s>3){ medScore+=1; reasons.push({f:'Burst Duration',v:f.burst_typing_duration_s+'s',level:'med',note:'3–8s'}); }
+  else { highScore+=2; reasons.push({f:'Burst Duration',v:f.burst_typing_duration_s+'s',level:'high',note:'<3s'}); }
+
+  // --- SENTENCE PAUSE ---
+  if(f.sentence_pause_s<3){ lowScore+=1; reasons.push({f:'Sentence Pause',v:f.sentence_pause_s+'s',level:'low',note:'<3s'}); }
+  else if(f.sentence_pause_s<7){ medScore+=2; reasons.push({f:'Sentence Pause',v:f.sentence_pause_s+'s',level:'med',note:'3–7s'}); }
+  else { highScore+=2; reasons.push({f:'Sentence Pause',v:f.sentence_pause_s+'s',level:'high',note:'>7s'}); }
+
+  // --- KEY INTERVAL VARIANCE ---
+  if(f.key_interval_variance_ms<60){ lowScore+=2; reasons.push({f:'Key Interval Variance',v:f.key_interval_variance_ms+'ms',level:'low',note:'<60ms'}); }
+  else if(f.key_interval_variance_ms<150){ medScore+=2; reasons.push({f:'Key Interval Variance',v:f.key_interval_variance_ms+'ms',level:'med',note:'60–150ms'}); }
+  else { highScore+=3; reasons.push({f:'Key Interval Variance',v:f.key_interval_variance_ms+'ms',level:'high',note:'>150ms'}); }
+
+  // --- CORRECTION LATENCY ---
+  if(f.correction_latency_ms<300){ lowScore+=1; reasons.push({f:'Correction Latency',v:f.correction_latency_ms+'ms',level:'low',note:'<300ms'}); }
+  else if(f.correction_latency_ms<700){ medScore+=2; reasons.push({f:'Correction Latency',v:f.correction_latency_ms+'ms',level:'med',note:'300–700ms'}); }
+  else { highScore+=3; reasons.push({f:'Correction Latency',v:f.correction_latency_ms+'ms',level:'high',note:'>700ms'}); }
+
+  // --- TYPING RHYTHM ENTROPY ---
+  if(f.typing_rhythm_entropy<1.5){ lowScore+=2; reasons.push({f:'Rhythm Entropy',v:f.typing_rhythm_entropy+' bits',level:'low',note:'<1.5 bits'}); }
+  else if(f.typing_rhythm_entropy<3.0){ medScore+=2; reasons.push({f:'Rhythm Entropy',v:f.typing_rhythm_entropy+' bits',level:'med',note:'1.5–3.0 bits'}); }
+  else { highScore+=3; reasons.push({f:'Rhythm Entropy',v:f.typing_rhythm_entropy+' bits',level:'high',note:'>3.0 bits'}); }
+
+  // --- CURSOR SPEED MEAN ---
+  if(f.cursor_speed_mean_px<5){ lowScore+=1; reasons.push({f:'Cursor Speed',v:f.cursor_speed_mean_px+' px/f',level:'low',note:'<5'}); }
+  else if(f.cursor_speed_mean_px<18){ medScore+=1; reasons.push({f:'Cursor Speed',v:f.cursor_speed_mean_px+' px/f',level:'med',note:'5–18'}); }
+  else { highScore+=2; reasons.push({f:'Cursor Speed',v:f.cursor_speed_mean_px+' px/f',level:'high',note:'>18'}); }
+
+  // --- CURSOR SPEED VARIANCE ---
+  if(f.cursor_speed_variance<8){ lowScore+=1; reasons.push({f:'Speed Variance',v:f.cursor_speed_variance.toFixed(2),level:'low',note:'<8'}); }
+  else if(f.cursor_speed_variance<20){ medScore+=1; reasons.push({f:'Speed Variance',v:f.cursor_speed_variance.toFixed(2),level:'med',note:'8–20'}); }
+  else { highScore+=2; reasons.push({f:'Speed Variance',v:f.cursor_speed_variance.toFixed(2),level:'high',note:'>20'}); }
+
+  // --- PATH EFFICIENCY ---
+  if(f.cursor_path_efficiency>0.75){ lowScore+=2; reasons.push({f:'Path Efficiency',v:(f.cursor_path_efficiency*100).toFixed(0)+'%',level:'low',note:'>75%'}); }
+  else if(f.cursor_path_efficiency>0.4){ medScore+=2; reasons.push({f:'Path Efficiency',v:(f.cursor_path_efficiency*100).toFixed(0)+'%',level:'med',note:'40–75%'}); }
+  else { highScore+=3; reasons.push({f:'Path Efficiency',v:(f.cursor_path_efficiency*100).toFixed(0)+'%',level:'high',note:'<40%'}); }
+
+  // --- CLICK RATE ---
+  if(f.click_rate_per_s<0.1){ lowScore+=1; reasons.push({f:'Click Rate',v:f.click_rate_per_s+'/s',level:'low',note:'<0.1/s'}); }
+  else if(f.click_rate_per_s<0.4){ medScore+=1; reasons.push({f:'Click Rate',v:f.click_rate_per_s+'/s',level:'med',note:'0.1–0.4/s'}); }
+  else { highScore+=2; reasons.push({f:'Click Rate',v:f.click_rate_per_s+'/s',level:'high',note:'>0.4/s'}); }
+
+  // --- HOVER TIME ---
+  if(f.hover_time_before_click_ms<300){ lowScore+=1; reasons.push({f:'Hover Time',v:f.hover_time_before_click_ms+'ms',level:'low',note:'<300ms'}); }
+  else if(f.hover_time_before_click_ms<800){ medScore+=2; reasons.push({f:'Hover Time',v:f.hover_time_before_click_ms+'ms',level:'med',note:'300–800ms'}); }
+  else { highScore+=2; reasons.push({f:'Hover Time',v:f.hover_time_before_click_ms+'ms',level:'high',note:'>800ms'}); }
+
+  // --- CURSOR ENTROPY ---
+  if(f.cursor_movement_entropy<2.0){ lowScore+=2; reasons.push({f:'Cursor Entropy',v:f.cursor_movement_entropy+' bits',level:'low',note:'<2.0 bits'}); }
+  else if(f.cursor_movement_entropy<3.5){ medScore+=2; reasons.push({f:'Cursor Entropy',v:f.cursor_movement_entropy+' bits',level:'med',note:'2.0–3.5 bits'}); }
+  else { highScore+=3; reasons.push({f:'Cursor Entropy',v:f.cursor_movement_entropy+' bits',level:'high',note:'>3.5 bits'}); }
+
+  // --- ALERT RESOLVE TIME ---
+  if(f.alert_resolve_time_ms === 0){}
+  else if(f.alert_resolve_time_ms < 3000){ lowScore+=2; reasons.push({f:'Alert Response',v:Math.round(f.alert_resolve_time_ms)+'ms',level:'low',note:'<3s'}); }
+  else if(f.alert_resolve_time_ms < 8000){ medScore+=2; reasons.push({f:'Alert Response',v:Math.round(f.alert_resolve_time_ms)+'ms',level:'med',note:'3–8s'}); }
+  else { highScore+=3; reasons.push({f:'Alert Response',v:Math.round(f.alert_resolve_time_ms)+'ms',level:'high',note:'>8s'}); }
+
+  // --- ALERT MISS RATE ---
+  if(totalAlertsTriggered === 0){}
+  else if(f.alert_miss_rate < 0.05){ lowScore+=2; reasons.push({f:'Alert Miss Rate',v:(f.alert_miss_rate*100).toFixed(1)+'%',level:'low',note:'<5%'}); }
+  else if(f.alert_miss_rate < 0.25){ medScore+=2; reasons.push({f:'Alert Miss Rate',v:(f.alert_miss_rate*100).toFixed(1)+'%',level:'med',note:'5–25%'}); }
+  else { highScore+=3; reasons.push({f:'Alert Miss Rate',v:(f.alert_miss_rate*100).toFixed(1)+'%',level:'high',note:'>25%'}); }
+
+  // --- OVERRIDE TYPING WPM ---
+  if(f.override_typing_wpm === 0){}
+  else if(f.override_typing_wpm > 40){ lowScore+=1; reasons.push({f:'Override WPM',v:f.override_typing_wpm+' WPM',level:'low',note:'>40'}); }
+  else if(f.override_typing_wpm > 20){ medScore+=1; reasons.push({f:'Override WPM',v:f.override_typing_wpm+' WPM',level:'med',note:'20–40'}); }
+  else { highScore+=2; reasons.push({f:'Override WPM',v:f.override_typing_wpm+' WPM',level:'high',note:'<20'}); }
+
+  let label='LOW';
+  if(highScore>medScore && highScore>lowScore) label='HIGH';
+  else if(medScore>lowScore) label='MEDIUM';
+
+  return { label, highScore, medScore, lowScore, reasons, compositeZ:0, method:'absolute-threshold' };
+}
+
+// ─── RESULTS ───
+function showResults(clf, features){
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('result-screen').classList.remove('hidden');
+
+  const title=document.getElementById('result-title');
+  title.textContent = clf.label+' COGNITIVE LOAD';
+  title.className = 'result-title '+clf.label;
+
+  const sid=document.getElementById('session-id').textContent;
+  const rankName = RANKS[currentRankIdx].name;
+  document.getElementById('result-badge').textContent=
+    `Session: ${sid} · Rank: ${rankName} · Commands: ${commandsCompleted} · Best Streak: ${bestStreak} · Score: ${score}`;
+
+  // Feature cards
+  const labels={
+    typing_speed_wpm:'Typing Speed',
+    error_rate:'Error Rate',
+    backspace_rate:'Backspace Rate',
+    burst_typing_duration_s:'Burst Duration',
+    sentence_pause_s:'Sentence Pause',
+    key_interval_variance_ms:'Key Variance',
+    correction_latency_ms:'Correction Latency',
+    typing_rhythm_entropy:'Rhythm Entropy',
+    cursor_speed_mean_px:'Cursor Speed',
+    cursor_speed_variance:'Speed Variance',
+    cursor_path_efficiency:'Path Efficiency',
+    click_rate_per_s:'Click Rate',
+    hover_time_before_click_ms:'Sat Dwell Time',
+    cursor_movement_entropy:'Cursor Entropy',
+    alert_resolve_time_ms:'Alert Response',
+    alert_miss_rate:'Alert Miss Rate',
+    override_typing_wpm:'Override WPM',
+  };
+  const units={
+    typing_speed_wpm:'WPM',error_rate:'%',backspace_rate:'%',
+    burst_typing_duration_s:'s',sentence_pause_s:'s',
+    key_interval_variance_ms:'ms',correction_latency_ms:'ms',
+    typing_rhythm_entropy:'bits',cursor_speed_mean_px:'px/f',
+    cursor_speed_variance:'',cursor_path_efficiency:'',
+    click_rate_per_s:'/s',hover_time_before_click_ms:'ms',
+    cursor_movement_entropy:'bits',
+    alert_resolve_time_ms:'ms',
+    alert_miss_rate:'',
+    override_typing_wpm:'WPM',
+  };
+
+  const grid=document.getElementById('result-grid');
+  grid.innerHTML='';
+  Object.entries(features).forEach(([k,v])=>{
+    const card=document.createElement('div'); card.className='result-card';
+    const display=
+      k==='cursor_path_efficiency' ? (v*100).toFixed(1)+'%' :
+      k==='alert_miss_rate'        ? (v*100).toFixed(1)+'%' :
+      v+units[k];
+    card.innerHTML=`<div class="result-card-label">${labels[k]||k}</div>
+      <div class="result-card-val">${display}</div>`;
+    grid.appendChild(card);
+  });
+
+  // Reasons
+  const reasonsEl=document.getElementById('result-reasons');
+  const methodLabel = clf.method === 'within-subject'
+    ? '🧪 WITHIN-SUBJECT Z-SCORE (relative to your LOW baseline)'
+    : '📊 ABSOLUTE THRESHOLD (no baseline available)';
+  let html=`<h3>CLASSIFICATION RATIONALE</h3>
+    <div style="font-family:Share Tech Mono,monospace;font-size:.7rem;color:var(--purple);margin-bottom:8px;">${methodLabel}</div>`;
+  clf.reasons.forEach(r=>{
+    html+=`<div class="reason-item">
+      <span class="ri ${r.level}">${r.level.toUpperCase()}</span>
+      <strong style="color:var(--text);font-size:.72rem;min-width:140px;">${r.f}</strong>
+      <span style="color:var(--accent);min-width:80px;">${r.v}</span>
+      <span>${r.note}</span>
+    </div>`;
+  });
+  if(clf.method === 'within-subject'){
+    html+=`<div style="margin-top:10px;font-family:Share Tech Mono,monospace;font-size:.68rem;color:var(--text-dim);">
+      Composite z-score: ${(clf.compositeZ||0).toFixed(2)} · Thresholds: &lt;0.5 = LOW, 0.5–1.5 = MEDIUM, ≥1.5 = HIGH
+    </div>`;
+  } else {
+    html+=`<div style="margin-top:10px;font-family:Share Tech Mono,monospace;font-size:.68rem;color:var(--text-dim);">
+      Score distribution → HIGH:${clf.highScore} MED:${clf.medScore} LOW:${clf.lowScore}
+    </div>`;
+  }
+  reasonsEl.innerHTML=html;
+
+  // Update badge with session info
+  const totalCmds = collectedRows.reduce((sum,r)=>sum+((r.features&&r.features.typing_speed_wpm)?1:0),0) > 0 ? commandsCompleted : commandsCompleted;
+  const finalRank = RANKS[currentRankIdx].name;
+  document.getElementById('result-badge').textContent =
+    `Session: ${masterSessionId||document.getElementById('session-id').textContent} · LOW + MEDIUM + HIGH · Rank: ${finalRank} · Score: ${score}`;
+}
+
+// ─── TRANSITION SCREEN (after LOW and MEDIUM) ───
+function showTransition(completedLevel){
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('transition-screen').classList.remove('hidden');
+
+  const nextLevel = completedLevel === 'LOW' ? 'MEDIUM' : 'HIGH';
+  const wpm = computeWPM();
+  const accPct = perfectCommands > 0 ? Math.round(perfectCommands / commandsCompleted * 100) : 0;
+
+  const descriptions = {
+    LOW: {
+      badge: '✓ LOW LOAD COMPLETE',
+      title: 'PREPARING MEDIUM LOAD',
+      titleClass: 'MEDIUM',
+      desc: `<div style="display:flex;gap:20px;justify-content:center;margin:8px 0 14px;">
+        <div style="text-align:center;"><span style="color:var(--accent);font-size:1.4rem;font-weight:700;">${score}</span><br><span style="font-size:.72rem;color:var(--text-dim);">SCORE</span></div>
+        <div style="text-align:center;"><span style="color:var(--green);font-size:1.4rem;font-weight:700;">${commandsCompleted}</span><br><span style="font-size:.72rem;color:var(--text-dim);">COMMANDS</span></div>
+        <div style="text-align:center;"><span style="color:var(--purple);font-size:1.4rem;font-weight:700;">${bestStreak}</span><br><span style="font-size:.72rem;color:var(--text-dim);">BEST STREAK</span></div>
+        <div style="text-align:center;"><span style="color:var(--warn);font-size:1.4rem;font-weight:700;">${wpm}</span><br><span style="font-size:.72rem;color:var(--text-dim);">WPM</span></div>
+        <div style="text-align:center;"><span style="color:var(--accent2);font-size:1.4rem;font-weight:700;">${accPct}%</span><br><span style="font-size:.72rem;color:var(--text-dim);">ACCURACY</span></div>
+      </div>
+      Commands are now <span class="hi">longer</span> and distractions <span class="hi">more frequent</span>.<br>
+      Can you <span class="hi">beat ${commandsCompleted} commands</span> and keep your streak alive?<br>
+      <span style="color:var(--green);font-size:.85rem;">Points are worth <strong>2×</strong> at MEDIUM difficulty!</span>`,
+      btn: '▶ CONTINUE TO MEDIUM',
+    },
+    MEDIUM: {
+      badge: '✓ MEDIUM LOAD COMPLETE',
+      title: 'PREPARING HIGH LOAD',
+      titleClass: 'HIGH',
+      desc: `<div style="display:flex;gap:20px;justify-content:center;margin:8px 0 14px;">
+        <div style="text-align:center;"><span style="color:var(--accent);font-size:1.4rem;font-weight:700;">${score}</span><br><span style="font-size:.72rem;color:var(--text-dim);">SCORE</span></div>
+        <div style="text-align:center;"><span style="color:var(--green);font-size:1.4rem;font-weight:700;">${commandsCompleted}</span><br><span style="font-size:.72rem;color:var(--text-dim);">COMMANDS</span></div>
+        <div style="text-align:center;"><span style="color:var(--purple);font-size:1.4rem;font-weight:700;">${bestStreak}</span><br><span style="font-size:.72rem;color:var(--text-dim);">BEST STREAK</span></div>
+        <div style="text-align:center;"><span style="color:var(--warn);font-size:1.4rem;font-weight:700;">${wpm}</span><br><span style="font-size:.72rem;color:var(--text-dim);">WPM</span></div>
+        <div style="text-align:center;"><span style="color:var(--accent2);font-size:1.4rem;font-weight:700;">${accPct}%</span><br><span style="font-size:.72rem;color:var(--text-dim);">ACCURACY</span></div>
+      </div>
+      This is the <span class="hi">final and most demanding</span> level —<br>
+      faster satellites, more alerts, and longer commands.<br>
+      <span style="color:var(--red);font-size:.85rem;">Points are worth <strong>3×</strong> at HIGH — this is where records are set!</span><br>
+      <span style="color:var(--text-dim);font-size:.78rem;">Your full session data will be available for download after this level.</span>`,
+      btn: '▶ CONTINUE TO HIGH',
+    },
+  };
+
+  const d = descriptions[completedLevel];
+  document.getElementById('trans-badge').textContent = d.badge;
+  const titleEl = document.getElementById('trans-title');
+  titleEl.textContent = d.title;
+  titleEl.className = 'trans-title ' + d.titleClass;
+  document.getElementById('trans-desc').innerHTML = d.desc;
+  const btn = document.getElementById('trans-continue-btn');
+  btn.textContent = d.btn;
+}
+
+// ─── NEXT LEVEL (called from transition screen CONTINUE button) ───
+function goNextLevel(){
+  document.getElementById('transition-screen').classList.add('hidden');
+  const nextMap = { LOW:'MEDIUM', MEDIUM:'HIGH' };
+  const next = nextMap[gameLevel];
+  if(next) startGame(next);
+}
+
+// ─── DOWNLOAD ALL CSV (3 rows: LOW, MEDIUM, HIGH only) ───
+function downloadAllCSV(){
+  const headers = [
+    'session_id','game_level','duration_s','final_score','classification','composite_z','classification_method','timestamp',
+    'typing_speed_wpm','error_rate','backspace_rate','burst_typing_duration_s',
+    'sentence_pause_s','key_interval_variance_ms','correction_latency_ms',
+    'typing_rhythm_entropy','cursor_speed_mean_px','cursor_speed_variance',
+    'cursor_path_efficiency','click_rate_per_s','hover_time_before_click_ms',
+    'cursor_movement_entropy','alert_resolve_time_ms','alert_miss_rate','override_typing_wpm',
+  ];
+  const q = v => `"${String(v).replace(/"/g,'""')}"`;
+  const ts = new Date().toISOString();
+  let csv = headers.map(q).join(',') + '\n';
+  // Only include LOW, MEDIUM, HIGH rows — exclude tutorial STD phases
+  collectedRows.filter(row => ['LOW','MEDIUM','HIGH'].includes(row.level)).forEach(row=>{
+    const f = row.features;
+    const dataRow = [
+      masterSessionId, row.level, row.duration, row.score, row.classification,
+      row.compositeZ || 0, row.classMethod || 'absolute-threshold', ts,
+      f.typing_speed_wpm, f.error_rate, f.backspace_rate, f.burst_typing_duration_s,
+      f.sentence_pause_s, f.key_interval_variance_ms, f.correction_latency_ms,
+      f.typing_rhythm_entropy, f.cursor_speed_mean_px, f.cursor_speed_variance,
+      f.cursor_path_efficiency, f.click_rate_per_s, f.hover_time_before_click_ms,
+      f.cursor_movement_entropy, f.alert_resolve_time_ms, f.alert_miss_rate, f.override_typing_wpm,
+    ];
+    csv += dataRow.map(q).join(',') + '\n';
+  });
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download=`neuropilot_full_${masterSessionId}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── CSV DOWNLOAD (single current session) ───
+function downloadCSV(){
+  const f = finalFeatures;
+  const sid = document.getElementById('session-id').textContent;
+
+  // Column headers — one row of labels
+  const headers = [
+    'session_id',
+    'game_level',
+    'duration_s',
+    'final_score',
+    'classification',
+    'composite_z',
+    'classification_method',
+    'timestamp',
+    'typing_speed_wpm',
+    'error_rate',
+    'backspace_rate',
+    'burst_typing_duration_s',
+    'sentence_pause_s',
+    'key_interval_variance_ms',
+    'correction_latency_ms',
+    'typing_rhythm_entropy',
+    'cursor_speed_mean_px',
+    'cursor_speed_variance',
+    'cursor_path_efficiency',
+    'click_rate_per_s',
+    'hover_time_before_click_ms',
+    'cursor_movement_entropy',
+    'alert_resolve_time_ms',
+    'alert_miss_rate',
+    'override_typing_wpm',
+  ];
+
+  // Single data row — values in the same order as headers
+  // Get the latest classification info from collectedRows
+  const lastRow = collectedRows.length > 0 ? collectedRows[collectedRows.length-1] : null;
+  const dataRow = [
+    sid,
+    gameLevel,
+    SESSION_DURATIONS[gameLevel],
+    score,
+    document.getElementById('result-title').textContent,
+    lastRow ? (lastRow.compositeZ || 0) : 0,
+    lastRow ? (lastRow.classMethod || 'absolute-threshold') : 'absolute-threshold',
+    new Date().toISOString(),
+    f.typing_speed_wpm,
+    f.error_rate,
+    f.backspace_rate,
+    f.burst_typing_duration_s,
+    f.sentence_pause_s,
+    f.key_interval_variance_ms,
+    f.correction_latency_ms,
+    f.typing_rhythm_entropy,
+    f.cursor_speed_mean_px,
+    f.cursor_speed_variance,
+    f.cursor_path_efficiency,
+    f.click_rate_per_s,
+    f.hover_time_before_click_ms,
+    f.cursor_movement_entropy,
+    f.alert_resolve_time_ms,
+    f.alert_miss_rate,
+    f.override_typing_wpm,
+  ];
+
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = headers.map(q).join(',') + '\n'
+            + dataRow.map(q).join(',') + '\n';
+
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `neuropilot_${sid}_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function levelOf(v,[lo,hi]){ return v<lo?'LOW':v<hi?'MEDIUM':'HIGH'; }
+function levelOfPct(v,[lo,hi]){ return v<lo?'LOW':v<hi?'MEDIUM':'HIGH'; }
+function levelOfInv(v,[lo,hi]){ return v>hi?'LOW':v>lo?'MEDIUM':'HIGH'; }
+function levelOfInvRatio(v,[lo,hi]){ return v>hi?'LOW':v>lo?'MEDIUM':'HIGH'; }
+
+// ─── KEYDOWN FOR GAME (ESC etc) ───
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&sessionActive){ stopGame(); showIntro(); }
+});
+
+// ─── WINDOW RESIZE ───
+window.addEventListener('resize',()=>{
+  const sc=document.getElementById('starfield');
+  sc.width=window.innerWidth; sc.height=window.innerHeight;
+});
+
+// Always refocus the type input after any click during an active game,
+// UNLESS the user is clicking inside the type input or the popup type-input fields.
+document.addEventListener('mousedown', e=>{
+  if(!sessionActive) return;
+  const tag = e.target.tagName;
+  // Allow clicks on popup-input fields (type-code alerts) to keep their own focus
+  if(e.target.id === 'type-input') return;
+  if(e.target.classList.contains('popup-input')) return;
+  // For everything else, refocus after a tick so the click action completes first
+  refocusInput();
+});
+
+</script>
+</body>
+</html>
